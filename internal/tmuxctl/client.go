@@ -108,6 +108,47 @@ func (c *Client) EnsureSession(ctx context.Context, opts Options) (Result, error
 	return res, nil
 }
 
+// ListSessions returns the names of tmux sessions currently running. When no
+// server is running, the returned slice is empty and the error is nil.
+func (c *Client) ListSessions(ctx context.Context) ([]string, error) {
+	cmd := c.run(ctx, c.bin, "list-sessions", "-F", "#{session_name}")
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		if exitErr, ok := err.(*exec.ExitError); ok && exitErr.ExitCode() == 1 {
+			msg := strings.ToLower(strings.TrimSpace(string(exitErr.Stderr)))
+			if strings.Contains(msg, "no server") || strings.Contains(msg, "failed to connect") {
+				return nil, nil
+			}
+		}
+		return nil, wrapTmuxErr("list-sessions", err, out)
+	}
+	lines := strings.Split(strings.TrimSpace(string(out)), "\n")
+	var sessions []string
+	for _, line := range lines {
+		name := strings.TrimSpace(line)
+		if name != "" {
+			sessions = append(sessions, name)
+		}
+	}
+	return sessions, nil
+}
+
+// AttachExisting switches/attaches to an existing session, returning an error
+// if the session is missing.
+func (c *Client) AttachExisting(ctx context.Context, session string) error {
+	if session == "" {
+		return errors.New("session name is required to resume")
+	}
+	exists, err := c.sessionExists(ctx, session)
+	if err != nil {
+		return err
+	}
+	if !exists {
+		return fmt.Errorf("tmux session %q not found", session)
+	}
+	return c.attach(context.Background(), session)
+}
+
 func (c *Client) sessionExists(ctx context.Context, session string) (bool, error) {
 	cmd := c.run(ctx, c.bin, "has-session", "-t", session)
 	out, err := cmd.CombinedOutput()

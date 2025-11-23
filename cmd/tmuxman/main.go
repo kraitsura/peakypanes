@@ -35,6 +35,7 @@ func main() {
 		tmuxBin     = flag.String("tmux", "", "path to the tmux binary to execute")
 		timeoutFlag = flag.Duration("timeout", 5*time.Second, "maximum time tmux commands may take")
 		noAttach    = flag.Bool("no-attach", false, "create the session but do not attach/switch to it")
+		resumeFlag  = flag.Bool("resume", false, "resume an existing tmux session (prompts if omitted)")
 	)
 	flag.Parse()
 
@@ -71,6 +72,13 @@ func main() {
 	client, err := tmuxctl.NewClient(*tmuxBin)
 	if err != nil {
 		exitWithErr(err)
+	}
+
+	if *resumeFlag {
+		if err := resumeExisting(client, strings.TrimSpace(*sessionFlag)); err != nil {
+			exitWithErr(err)
+		}
+		return
 	}
 
 	ctx := context.Background()
@@ -140,6 +148,36 @@ func runInteractive(session *string, layoutSpec *string, needsSession, needsLayo
 		return err
 	}
 	return nil
+}
+
+func resumeExisting(client *tmuxctl.Client, requested string) error {
+	session := strings.TrimSpace(requested)
+	if session == "" {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		sessions, err := client.ListSessions(ctx)
+		cancel()
+		if err != nil {
+			return err
+		}
+		if len(sessions) == 0 {
+			return errors.New("no tmux sessions are currently running to resume")
+		}
+		options := make([]huh.Option[string], 0, len(sessions))
+		for _, name := range sessions {
+			options = append(options, huh.NewOption(name, name))
+		}
+		selectField := huh.NewSelect[string]().Title("Resume tmux session").Options(options...).Value(&session)
+		form := huh.NewForm(huh.NewGroup(selectField))
+		if err := form.Run(); err != nil {
+			if errors.Is(err, huh.ErrUserAborted) {
+				return fmt.Errorf("aborted by user")
+			}
+			return err
+		}
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	return client.AttachExisting(ctx, session)
 }
 
 func exitWithErr(err error) {
