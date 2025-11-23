@@ -109,11 +109,12 @@ func (c *Client) EnsureSession(ctx context.Context, opts Options) (Result, error
 
 func (c *Client) sessionExists(ctx context.Context, session string) (bool, error) {
 	cmd := c.run(ctx, c.bin, "has-session", "-t", session)
-	if err := cmd.Run(); err != nil {
+	out, err := cmd.CombinedOutput()
+	if err != nil {
 		if exitErr, ok := err.(*exec.ExitError); ok && exitErr.ExitCode() == 1 {
 			return false, nil
 		}
-		return false, wrapTmuxErr("has-session", err)
+		return false, wrapTmuxErr("has-session", err, out)
 	}
 	return true, nil
 }
@@ -151,7 +152,7 @@ func (c *Client) newSession(ctx context.Context, session, startDir string) (stri
 	cmd := c.run(ctx, c.bin, args...)
 	out, err := cmd.Output()
 	if err != nil {
-		return "", wrapTmuxErr("new-session", err)
+		return "", wrapTmuxErr("new-session", err, nil)
 	}
 	pane := strings.TrimSpace(string(out))
 	if pane == "" {
@@ -176,7 +177,7 @@ func (c *Client) splitPane(ctx context.Context, target, startDir, orientation st
 	cmd := c.run(ctx, c.bin, args...)
 	out, err := cmd.Output()
 	if err != nil {
-		return "", wrapTmuxErr(fmt.Sprintf("split-window %s", orientation), err)
+		return "", wrapTmuxErr(fmt.Sprintf("split-window %s", orientation), err, nil)
 	}
 	pane := strings.TrimSpace(string(out))
 	if pane == "" {
@@ -188,8 +189,8 @@ func (c *Client) splitPane(ctx context.Context, target, startDir, orientation st
 func (c *Client) equalize(ctx context.Context, session string) error {
 	window := fmt.Sprintf("%s:0", session)
 	cmd := c.run(ctx, c.bin, "select-layout", "-t", window, "tiled")
-	if err := cmd.Run(); err != nil {
-		return wrapTmuxErr("select-layout", err)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return wrapTmuxErr("select-layout", err, out)
 	}
 	return nil
 }
@@ -209,16 +210,16 @@ func (c *Client) attach(ctx context.Context, session string) error {
 
 func (c *Client) attachSession(ctx context.Context, session string) error {
 	cmd := c.run(ctx, c.bin, "attach-session", "-t", session)
-	if err := cmd.Run(); err != nil {
-		return wrapTmuxErr("attach-session", err)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return wrapTmuxErr("attach-session", err, out)
 	}
 	return nil
 }
 
 func (c *Client) switchClient(ctx context.Context, session string) error {
 	cmd := c.run(ctx, c.bin, "switch-client", "-t", session)
-	if err := cmd.Run(); err != nil {
-		return wrapTmuxErr("switch-client", err)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return wrapTmuxErr("switch-client", err, out)
 	}
 	return nil
 }
@@ -230,13 +231,17 @@ func insideTmux() bool {
 	return false
 }
 
-func wrapTmuxErr(subcmd string, err error) error {
-	if exitErr, ok := err.(*exec.ExitError); ok {
-		if msg := strings.TrimSpace(string(exitErr.Stderr)); msg != "" {
-			return fmt.Errorf("tmux %s: %s", subcmd, msg)
+func wrapTmuxErr(subcmd string, err error, combined []byte) error {
+	msg := strings.TrimSpace(string(combined))
+	if msg == "" {
+		if exitErr, ok := err.(*exec.ExitError); ok && len(exitErr.Stderr) > 0 {
+			msg = strings.TrimSpace(string(exitErr.Stderr))
 		}
 	}
-	return fmt.Errorf("tmux %s: %w", subcmd, err)
+	if msg == "" {
+		msg = err.Error()
+	}
+	return fmt.Errorf("tmux %s: %s", subcmd, msg)
 }
 
 func isNestedTmuxErr(err error) bool {
