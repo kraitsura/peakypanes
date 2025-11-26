@@ -25,6 +25,7 @@ var shortcuts = []shortcut{
 	{"Cmd+T", "New window"},
 	{"Cmd+W", "Close window"},
 	{"Cmd+1…9", "Jump to window"},
+	{"Cmd+R", "Respawn pane"},
 	{"Cmd+Shift+W", "Kill session"},
 	{"Cmd+Shift+H/J/K/L", "Resize panes"},
 	{"Cmd+Backspace", "Clear line"},
@@ -37,7 +38,7 @@ func NewModel() Model {
 	return Model{}
 }
 
-func (m Model) Init() tea.Cmd { return nil }
+func (m Model) Init() tea.Cmd { return tea.ClearScreen }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
