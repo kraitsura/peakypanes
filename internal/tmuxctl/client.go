@@ -287,6 +287,10 @@ func (c *Client) createGrid(ctx context.Context, session, startDir string, grid 
 	if err != nil {
 		return err
 	}
+
+	// Set remain-on-exit as default - keeps panes open after command exits/crashes for debugging
+	_ = c.SetOption(ctx, session, "remain-on-exit", "on")
+
 	rowRoots := []string{firstPane}
 	current := firstPane
 	for i := 1; i < grid.Rows; i++ {
