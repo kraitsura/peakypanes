@@ -1,10 +1,12 @@
 package peakypanes
 
 import (
+	"strings"
 	"time"
 
-	"github.com/kregenrek/tmuxman/internal/layout"
-	"github.com/kregenrek/tmuxman/internal/tmuxctl"
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/regenrek/peakypanes/internal/layout"
+	"github.com/regenrek/peakypanes/internal/tmuxctl"
 )
 
 // ViewState represents the current UI view.
@@ -17,6 +19,10 @@ const (
 	StateConfirmKill
 	StateConfirmCloseProject
 	StateHelp
+	StateCommandPalette
+	StateRenameSession
+	StateRenameWindow
+	StateProjectRootSetup
 )
 
 // Status describes the tmux lifecycle state of a session.
@@ -107,6 +113,7 @@ type DashboardConfig struct {
 	ShowThumbnails  bool
 	StatusMatcher   statusMatcher
 	PreviewMode     string
+	ProjectRoots    []string
 }
 
 // selectionState tracks the current selection by name/index.
@@ -119,6 +126,7 @@ type selectionState struct {
 // tmuxSnapshotInput carries the state needed for refresh.
 type tmuxSnapshotInput struct {
 	Selection selectionState
+	Version   uint64
 	Config    *layout.Config
 	Settings  DashboardConfig
 }
@@ -131,6 +139,7 @@ type tmuxSnapshotResult struct {
 	Warning   string
 	RawConfig *layout.Config
 	Settings  DashboardConfig
+	Version   uint64
 }
 
 // tmuxSnapshotMsg is sent back to the model.
@@ -140,6 +149,14 @@ type tmuxSnapshotMsg struct {
 
 // refreshTickMsg triggers the next refresh.
 type refreshTickMsg struct{}
+
+// selectionRefreshMsg triggers a debounced refresh for selection changes.
+type selectionRefreshMsg struct {
+	Version uint64
+}
+
+// exitAfterAttachMsg exits the dashboard after a tmux attach returns.
+type exitAfterAttachMsg struct{}
 
 // GitProject represents a project directory with .git.
 type GitProject struct {
@@ -161,6 +178,17 @@ type LayoutChoice struct {
 func (l LayoutChoice) Title() string       { return l.Label }
 func (l LayoutChoice) Description() string { return l.Desc }
 func (l LayoutChoice) FilterValue() string { return l.Label }
+
+// CommandItem represents a selectable command in the palette.
+type CommandItem struct {
+	Label string
+	Desc  string
+	Run   func(*Model) tea.Cmd
+}
+
+func (c CommandItem) Title() string       { return c.Label }
+func (c CommandItem) Description() string { return c.Desc }
+func (c CommandItem) FilterValue() string { return strings.ToLower(c.Label + " " + c.Desc) }
 
 // paneFromTmux converts tmux pane info to dashboard pane item.
 func paneFromTmux(p tmuxctl.PaneInfo) PaneItem {

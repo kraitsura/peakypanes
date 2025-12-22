@@ -4,7 +4,7 @@ description: "2x4 grid with 8 codex instances for parallel AI coding"
 settings:
   bind_keys:
     - key: g
-      action: "switch-client -t peakypanes"
+      action: "run-shell \"peakypanes popup\""
 
 grid: 2x4
 window: codex

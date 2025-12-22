@@ -96,6 +96,7 @@ type DashboardConfig struct {
 	ShowThumbnails *bool             `yaml:"show_thumbnails,omitempty"`
 	StatusRegex    StatusRegexConfig `yaml:"status_regex,omitempty"`
 	PreviewMode    string            `yaml:"preview_mode,omitempty"` // grid | layout
+	ProjectRoots   []string          `yaml:"project_roots,omitempty"`
 }
 
 // TmuxSection holds tmux-specific config.

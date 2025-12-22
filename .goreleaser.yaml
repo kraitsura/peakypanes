@@ -1,0 +1,46 @@
+version: 2
+
+project_name: peakypanes
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: peakypanes
+    main: ./cmd/peakypanes
+    binary: peakypanes
+    goos:
+      - darwin
+      - linux
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w -X main.version={{ .Version }}
+
+archives:
+  - id: peakypanes
+    builds:
+      - peakypanes
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    format_overrides:
+      - goos: windows
+        format: zip
+
+checksum:
+  name_template: checksums.txt
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
+      - "^ci:"

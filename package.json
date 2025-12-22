@@ -1,0 +1,10 @@
+{
+  "name": "peakypanes-workspace",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build:npm-packages": "node scripts/build-npm-packages"
+  }
+}

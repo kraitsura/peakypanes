@@ -9,8 +9,9 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+	"unicode"
 
-	"github.com/kregenrek/tmuxman/internal/layout"
+	"github.com/regenrek/peakypanes/internal/layout"
 )
 
 // Client coordinates tmux operations to create deterministic pane grids.
@@ -32,6 +33,13 @@ type Options struct {
 type Result struct {
 	Created  bool
 	Attached bool
+}
+
+// PopupOptions controls tmux popup rendering.
+type PopupOptions struct {
+	Width    string
+	Height   string
+	StartDir string
 }
 
 // NewClient resolves the tmux binary and returns a Client.
@@ -193,6 +201,19 @@ func (c *Client) CurrentSession(ctx context.Context) (string, error) {
 	return strings.TrimSpace(string(out)), nil
 }
 
+// SelectWindow activates a window in a session.
+func (c *Client) SelectWindow(ctx context.Context, target string) error {
+	target = strings.TrimSpace(target)
+	if target == "" {
+		return errors.New("select-window target is required")
+	}
+	cmd := c.run(ctx, c.bin, "select-window", "-t", target)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return wrapTmuxErr("select-window", err, out)
+	}
+	return nil
+}
+
 // KillSession terminates a tmux session by name.
 func (c *Client) KillSession(ctx context.Context, session string) error {
 	if session == "" {
@@ -201,6 +222,40 @@ func (c *Client) KillSession(ctx context.Context, session string) error {
 	cmd := c.run(ctx, c.bin, "kill-session", "-t", session)
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return wrapTmuxErr("kill-session", err, out)
+	}
+	return nil
+}
+
+// RenameSession renames a tmux session.
+func (c *Client) RenameSession(ctx context.Context, session, newName string) error {
+	if session == "" {
+		return errors.New("session name is required")
+	}
+	if strings.TrimSpace(newName) == "" {
+		return errors.New("new session name is required")
+	}
+	cmd := c.run(ctx, c.bin, "rename-session", "-t", session, newName)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return wrapTmuxErr("rename-session", err, out)
+	}
+	return nil
+}
+
+// RenameWindow renames a tmux window in the given session.
+func (c *Client) RenameWindow(ctx context.Context, session, windowTarget, newName string) error {
+	if session == "" {
+		return errors.New("session name is required")
+	}
+	if windowTarget == "" {
+		return errors.New("window target is required")
+	}
+	if strings.TrimSpace(newName) == "" {
+		return errors.New("new window name is required")
+	}
+	target := fmt.Sprintf("%s:%s", session, windowTarget)
+	cmd := c.run(ctx, c.bin, "rename-window", "-t", target, newName)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return wrapTmuxErr("rename-window", err, out)
 	}
 	return nil
 }
@@ -461,11 +516,92 @@ func (c *Client) BindKey(ctx context.Context, key, action string) error {
 	if key == "" || action == "" {
 		return errors.New("bind-key requires key and action")
 	}
-	args := []string{"bind-key", key}
-	args = append(args, strings.Fields(action)...)
+	actionArgs, err := splitTmuxArgs(action)
+	if err != nil {
+		return err
+	}
+	args := append([]string{"bind-key", key}, actionArgs...)
 	cmd := c.run(ctx, c.bin, args...)
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return wrapTmuxErr("bind-key", err, out)
+	}
+	return nil
+}
+
+func splitTmuxArgs(input string) ([]string, error) {
+	var (
+		args     []string
+		buf      strings.Builder
+		inSingle bool
+		inDouble bool
+		escaped  bool
+	)
+
+	for _, r := range input {
+		switch {
+		case escaped:
+			buf.WriteRune(r)
+			escaped = false
+		case r == '\\' && !inSingle:
+			escaped = true
+		case r == '\'' && !inDouble:
+			inSingle = !inSingle
+		case r == '"' && !inSingle:
+			inDouble = !inDouble
+		case !inSingle && !inDouble && unicode.IsSpace(r):
+			if buf.Len() > 0 {
+				args = append(args, buf.String())
+				buf.Reset()
+			}
+		default:
+			buf.WriteRune(r)
+		}
+	}
+
+	if escaped {
+		return nil, errors.New("bind-key action has trailing escape")
+	}
+	if inSingle || inDouble {
+		return nil, errors.New("bind-key action has unterminated quote")
+	}
+	if buf.Len() > 0 {
+		args = append(args, buf.String())
+	}
+	if len(args) == 0 {
+		return nil, errors.New("bind-key action is empty")
+	}
+	return args, nil
+}
+
+// SupportsPopup reports whether the running tmux supports display-popup.
+func (c *Client) SupportsPopup(ctx context.Context) bool {
+	cmd := c.run(ctx, c.bin, "list-commands")
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return false
+	}
+	return strings.Contains(string(out), "display-popup")
+}
+
+// DisplayPopup opens a tmux popup and runs the provided command inside it.
+func (c *Client) DisplayPopup(ctx context.Context, opts PopupOptions, command []string) error {
+	if len(command) == 0 {
+		return errors.New("display-popup requires a command")
+	}
+	args := []string{"display-popup", "-E"}
+	if strings.TrimSpace(opts.Width) != "" {
+		args = append(args, "-w", opts.Width)
+	}
+	if strings.TrimSpace(opts.Height) != "" {
+		args = append(args, "-h", opts.Height)
+	}
+	if strings.TrimSpace(opts.StartDir) != "" {
+		args = append(args, "-d", opts.StartDir)
+	}
+	args = append(args, command...)
+	cmd := c.run(ctx, c.bin, args...)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return wrapTmuxErr("display-popup", err, out)
 	}
 	return nil
 }

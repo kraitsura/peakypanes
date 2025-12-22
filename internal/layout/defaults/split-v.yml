@@ -4,7 +4,7 @@ description: "Two vertical panes (left/right)"
 settings:
   bind_keys:
     - key: g
-      action: "switch-client -t peakypanes"
+      action: "run-shell \"peakypanes popup\""
 
 windows:
   - name: dev

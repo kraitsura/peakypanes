@@ -4,7 +4,7 @@ description: "Generic 2x2 grid (4 panes)"
 settings:
   bind_keys:
     - key: g
-      action: "switch-client -t peakypanes"
+      action: "run-shell \"peakypanes popup\""
 
 grid: 2x2
 window: grid

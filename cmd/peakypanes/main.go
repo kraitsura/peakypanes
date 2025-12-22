@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -14,12 +15,17 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/kregenrek/tmuxman/internal/layout"
-	"github.com/kregenrek/tmuxman/internal/tmuxctl"
-	"github.com/kregenrek/tmuxman/internal/tui/peakypanes"
+	"github.com/regenrek/peakypanes/internal/layout"
+	"github.com/regenrek/peakypanes/internal/tmuxctl"
+	"github.com/regenrek/peakypanes/internal/tui/peakypanes"
 )
 
-const version = "0.1.0"
+var version = "dev"
+
+const (
+	defaultDashboardSession = "peakypanes-dashboard"
+	defaultDashboardWindow  = "peakypanes-dashboard"
+)
 
 const helpText = `🎩 Peaky Panes - Tmux Layout Manager
 
@@ -27,19 +33,23 @@ Usage:
   peakypanes [command] [options]
 
 Commands:
-  (no command)     Open interactive dashboard (tmux session: peakypanes)
-  dashboard        Open dashboard UI directly (no tmux wrapper)
+  (no command)     Open interactive dashboard (direct)
+  dashboard        Open dashboard UI
+  popup            Open dashboard as a tmux popup (if available)
   open             Start/attach session in current directory
   start            Start/attach session (same as open)
   kill             Kill a tmux session
   init             Initialize configuration
   layouts          List and manage layouts
   clone            Clone from GitHub and open
+	setup            Check dependencies and print install tips
   version          Show version
 
 Examples:
-  peakypanes                          # Open dashboard (tmux session: peakypanes)
-  peakypanes dashboard                # Open dashboard directly
+  peakypanes                          # Open dashboard
+  peakypanes dashboard                # Open dashboard (direct)
+  peakypanes dashboard --tmux-session # Host dashboard in tmux session
+  peakypanes popup                    # Open dashboard popup (tmux)
   peakypanes open                     # Start/attach session in current directory
   peakypanes open --layout dev-3      # Start with specific layout
   peakypanes kill                     # Kill session for current directory
@@ -49,8 +59,33 @@ Examples:
   peakypanes layouts                  # List available layouts
   peakypanes layouts export dev-3     # Export layout YAML to stdout
   peakypanes clone user/repo          # Clone from GitHub and start session
+	peakypanes setup                    # Check tmux installation
 
 Run 'peakypanes <command> --help' for more information.
+`
+
+const dashboardHelpText = `Open the Peaky Panes dashboard UI.
+
+Usage:
+  peakypanes dashboard [options]
+
+Options:
+  --tmux-session       Host the dashboard in a dedicated tmux session
+  --session <name>     Session name for --tmux-session (default: peakypanes-dashboard)
+  --popup              Open the dashboard as a tmux popup when supported
+  -h, --help           Show this help
+
+Examples:
+  peakypanes dashboard
+  peakypanes dashboard --tmux-session
+  peakypanes dashboard --tmux-session --session my-dashboard
+  peakypanes dashboard --popup
+`
+
+const popupHelpText = `Open the dashboard as a tmux popup (fallbacks to direct UI).
+
+Usage:
+  peakypanes popup
 `
 
 const initHelpText = `Initialize Peaky Panes configuration.
@@ -129,16 +164,30 @@ Examples:
   peakypanes kill myapp               # Kill session named 'myapp'
 `
 
+const setupHelpText = `Check external dependencies.
+
+Usage:
+	peakypanes setup
+
+Checks:
+	tmux is installed and on PATH
+
+Examples:
+	peakypanes setup
+`
+
 func main() {
 	if len(os.Args) < 2 {
-		// Default: open dashboard in a dedicated tmux session
-		runDashboard()
+		// Default: open dashboard directly in the current terminal
+		runMenu()
 		return
 	}
 
 	switch os.Args[1] {
 	case "dashboard", "ui":
-		runMenu()
+		runDashboardCommand(os.Args[2:])
+	case "popup":
+		runDashboardPopup(os.Args[2:])
 	case "open", "o", "start":
 		runStart(os.Args[2:])
 	case "kill", "k":
@@ -149,6 +198,8 @@ func main() {
 		runLayouts(os.Args[2:])
 	case "clone", "c":
 		runClone(os.Args[2:])
+	case "setup":
+		runSetup(os.Args[2:])
 	case "version", "-v", "--version":
 		fmt.Printf("peakypanes %s\n", version)
 	case "help", "-h", "--help":
@@ -180,18 +231,182 @@ func runMenu() {
 	}
 }
 
-func runDashboard() {
-	exe, err := os.Executable()
-	if err != nil || strings.TrimSpace(exe) == "" {
-		exe = "peakypanes"
+type dashboardOptions struct {
+	popup      bool
+	tmuxHosted bool
+	session    string
+	showHelp   bool
+}
+
+func runDashboardCommand(args []string) {
+	opts := dashboardOptions{session: defaultDashboardSession}
+	for i := 0; i < len(args); i++ {
+		switch args[i] {
+		case "--tmux-session":
+			opts.tmuxHosted = true
+		case "--session":
+			if i+1 < len(args) {
+				opts.session = args[i+1]
+				i++
+			}
+		case "--popup":
+			opts.popup = true
+		case "-h", "--help":
+			opts.showHelp = true
+		}
 	}
-	cmd := exec.Command("tmux", "new-session", "-A", "-s", "peakypanes", exe, "dashboard")
+
+	if opts.showHelp {
+		fmt.Print(dashboardHelpText)
+		return
+	}
+	if opts.popup && opts.tmuxHosted {
+		fatal("choose either --popup or --tmux-session")
+	}
+	if opts.popup {
+		runDashboardPopup(nil)
+		return
+	}
+	if opts.tmuxHosted {
+		runDashboardHosted(opts.session)
+		return
+	}
+	runMenu()
+}
+
+func runDashboardPopup(args []string) {
+	for _, a := range args {
+		if a == "-h" || a == "--help" {
+			fmt.Print(popupHelpText)
+			return
+		}
+	}
+	if !insideTmux() {
+		runMenu()
+		return
+	}
+	client, err := tmuxctl.NewClient("")
+	if err != nil {
+		fatal("tmux not found: %v", err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	if ok := client.SupportsPopup(ctx); ok {
+		err := client.DisplayPopup(ctx, tmuxctl.PopupOptions{
+			Width:    "90%",
+			Height:   "90%",
+			StartDir: currentDir(),
+		}, []string{selfExecutable(), "dashboard"})
+		if err == nil {
+			return
+		}
+	}
+	if err := openDashboardWindow(ctx, client); err != nil {
+		fmt.Fprintf(os.Stderr, "peakypanes: popup failed: %v\n", err)
+		runMenu()
+	}
+}
+
+func runDashboardHosted(sessionName string) {
+	client, err := tmuxctl.NewClient("")
+	if err != nil {
+		fatal("tmux not found: %v", err)
+	}
+	sessionName = sanitizeSessionName(strings.TrimSpace(sessionName))
+	if sessionName == "" {
+		sessionName = defaultDashboardSession
+	}
+	exe := selfExecutable()
+	if insideTmux() {
+		cmd := exec.Command(client.Binary(), "new-session", "-Ad", "-s", sessionName, exe, "dashboard")
+		cmd.Stdin = os.Stdin
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		if err := cmd.Run(); err != nil {
+			fatal("failed to start dashboard session: %v", err)
+		}
+		switchCmd := exec.Command(client.Binary(), "switch-client", "-t", sessionName)
+		switchCmd.Stdin = os.Stdin
+		switchCmd.Stdout = os.Stdout
+		switchCmd.Stderr = os.Stderr
+		if err := switchCmd.Run(); err != nil {
+			fmt.Printf("   Run: tmux switch-client -t %s\n", sessionName)
+		}
+		return
+	}
+	cmd := exec.Command(client.Binary(), "new-session", "-A", "-s", sessionName, exe, "dashboard")
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
-		runMenu()
+		fatal("failed to start dashboard session: %v", err)
 	}
+}
+
+func runSetup(args []string) {
+	for _, a := range args {
+		if a == "-h" || a == "--help" {
+			fmt.Print(setupHelpText)
+			return
+		}
+	}
+
+	fmt.Println("🎩 Peaky Panes setup")
+	fmt.Println()
+
+	tmuxPath, err := exec.LookPath("tmux")
+	if err == nil && strings.TrimSpace(tmuxPath) != "" {
+		fmt.Printf("✅ tmux found: %s\n", tmuxPath)
+
+		if out, err := exec.Command("tmux", "-V").Output(); err == nil {
+			v := strings.TrimSpace(string(out))
+			if v != "" {
+				fmt.Printf("   %s\n", v)
+			}
+		}
+
+		fmt.Println()
+		fmt.Println("All set.")
+		fmt.Println("Run 'peakypanes' to open the dashboard.")
+		return
+	}
+
+	fmt.Println("❌ tmux not found in PATH")
+	fmt.Println()
+	fmt.Println("Install tmux, then rerun 'peakypanes setup'.")
+
+	switch runtime.GOOS {
+	case "darwin":
+		fmt.Println()
+		fmt.Println("macOS")
+		fmt.Println("  brew install tmux")
+		fmt.Println("  or")
+		fmt.Println("  port install tmux")
+	case "linux":
+		fmt.Println()
+		fmt.Println("Debian or Ubuntu")
+		fmt.Println("  sudo apt-get update")
+		fmt.Println("  sudo apt-get install tmux")
+		fmt.Println()
+		fmt.Println("Fedora")
+		fmt.Println("  sudo dnf install tmux")
+		fmt.Println()
+		fmt.Println("Arch")
+		fmt.Println("  sudo pacman -S tmux")
+	case "windows":
+		fmt.Println()
+		fmt.Println("Windows")
+		fmt.Println("  tmux runs in WSL")
+		fmt.Println("  wsl --install")
+		fmt.Println("  then inside WSL")
+		fmt.Println("    sudo apt-get update")
+		fmt.Println("    sudo apt-get install tmux")
+	default:
+		fmt.Println()
+		fmt.Println("Install tmux with your system package manager.")
+	}
+
+	os.Exit(1)
 }
 
 func runClone(args []string) {
@@ -346,7 +561,8 @@ layout:
 	fmt.Printf("✨ Created %s\n", configPath)
 	fmt.Printf("   Based on layout: %s\n", layoutName)
 	fmt.Printf("\n   Edit it to customize, then:\n")
-	fmt.Printf("   • Run 'peakypanes' to start the session\n")
+	fmt.Printf("   • Run 'peakypanes start' to start the session\n")
+	fmt.Printf("   • Run 'peakypanes' to open the dashboard\n")
 	fmt.Printf("   • Commit to git so teammates get the same layout\n")
 }
 
@@ -380,7 +596,7 @@ func initGlobal(layoutName string, force bool) {
 	}
 
 	configContent := `# Peaky Panes - Global Configuration
-# https://github.com/kregenrek/peakypanes
+# https://github.com/regenrek/peakypanes
 
 tmux:
   config: ~/.config/tmux/tmux.conf
@@ -397,6 +613,8 @@ ghostty:
 #   idle_seconds: 20
 #   show_thumbnails: true
 #   preview_mode: grid   # grid | layout
+#   project_roots:
+#     - ~/projects
 #   status_regex:
 #     success: "(?i)done|finished|success|completed|✅"
 #     error: "(?i)error|failed|panic|❌"
@@ -445,7 +663,8 @@ tools:
 	fmt.Printf("   Next steps:\n")
 	fmt.Printf("   • Run 'peakypanes layouts' to see available layouts\n")
 	fmt.Printf("   • Run 'peakypanes init --local' in a project to create .peakypanes.yml\n")
-	fmt.Printf("   • Run 'peakypanes' in any directory to start a session\n")
+	fmt.Printf("   • Run 'peakypanes start' in any directory to start a session\n")
+	fmt.Printf("   • Run 'peakypanes' to open the dashboard\n")
 }
 
 func runLayouts(args []string) {
@@ -1093,7 +1312,9 @@ func applyLayoutBindings(ctx context.Context, client *tmuxctl.Client, layoutCfg 
 		if strings.TrimSpace(bind.Key) == "" || strings.TrimSpace(bind.Action) == "" {
 			continue
 		}
-		_ = client.BindKey(ctx, bind.Key, bind.Action)
+		if err := client.BindKey(ctx, bind.Key, bind.Action); err != nil {
+			fmt.Printf("   ⚠ bind-key %s: %v\n", bind.Key, err)
+		}
 	}
 }
 
@@ -1189,6 +1410,52 @@ func sanitizeSessionName(name string) string {
 		return "session"
 	}
 	return result
+}
+
+func insideTmux() bool {
+	return os.Getenv("TMUX") != "" || os.Getenv("TMUX_PANE") != ""
+}
+
+func selfExecutable() string {
+	exe, err := os.Executable()
+	if err != nil || strings.TrimSpace(exe) == "" {
+		return "peakypanes"
+	}
+	return exe
+}
+
+func currentDir() string {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return ""
+	}
+	return cwd
+}
+
+func openDashboardWindow(ctx context.Context, client *tmuxctl.Client) error {
+	session, err := client.CurrentSession(ctx)
+	if err != nil {
+		return err
+	}
+	if session == "" {
+		return fmt.Errorf("no active tmux session")
+	}
+	windows, err := client.ListWindows(ctx, session)
+	if err != nil {
+		return err
+	}
+	for _, w := range windows {
+		if w.Name == defaultDashboardWindow {
+			return client.SelectWindow(ctx, fmt.Sprintf("%s:%s", session, defaultDashboardWindow))
+		}
+	}
+	cmd := exec.Command(client.Binary(), "new-window", "-t", session, "-n", defaultDashboardWindow, selfExecutable(), "dashboard")
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		return err
+	}
+	return client.SelectWindow(ctx, fmt.Sprintf("%s:%s", session, defaultDashboardWindow))
 }
 
 func fatal(format string, args ...interface{}) {

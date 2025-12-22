@@ -8,7 +8,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/charmbracelet/x/cellbuf"
-	"github.com/kregenrek/tmuxman/internal/tui/theme"
+	"github.com/regenrek/peakypanes/internal/tui/theme"
 )
 
 func (m Model) viewDashboard() string {
@@ -122,7 +122,11 @@ func (m Model) viewSidebar(width, height int) string {
 	}
 
 	for _, s := range sessions {
-		line := fmt.Sprintf("%s %s (%d)", statusIcon(s.Status), s.Name, s.WindowCount)
+		marker := " "
+		if s.Name == m.selection.Session {
+			marker = "▸"
+		}
+		line := fmt.Sprintf("%s %s %s (%d)", marker, statusIcon(s.Status), s.Name, s.WindowCount)
 		if s.Name == m.selection.Session {
 			line = theme.ListSelectedTitle.Render(line)
 		} else if s.Status == StatusStopped {
@@ -139,7 +143,7 @@ func (m Model) viewSidebar(width, height int) string {
 				for _, w := range s.Windows {
 					marker := " "
 					if w.Index == m.selection.Window {
-						marker = "*"
+						marker = "▸"
 					}
 					wline := fmt.Sprintf("  %s %s", marker, w.Name)
 					if w.Index == m.selection.Window {
@@ -276,7 +280,7 @@ func (m Model) viewThumbnails(width int) string {
 }
 
 func (m Model) viewFooter(width int) string {
-	base := "←/→ project   ↑/↓ session   ⇧↑/⇧↓ window   t new term   ? help"
+	base := "←/→ project   ↑/↓ session   ⇧↑/⇧↓ window   ^p commands   t new term   ? help"
 	toast := m.toastText()
 	if toast == "" {
 		return fitLine(base, width)
@@ -349,6 +353,78 @@ func (m Model) viewConfirmCloseProject() string {
 	return m.overlayDialog(dialog)
 }
 
+func (m Model) viewRename() string {
+	var dialogContent strings.Builder
+
+	title := "Rename Session"
+	if m.state == StateRenameWindow {
+		title = "Rename Window"
+	}
+	dialogContent.WriteString(dialogTitleStyle.Render(title))
+	dialogContent.WriteString("\n\n")
+
+	if m.state == StateRenameWindow {
+		if strings.TrimSpace(m.renameSession) != "" {
+			dialogContent.WriteString(theme.DialogLabel.Render("Session: "))
+			dialogContent.WriteString(theme.DialogValue.Render(m.renameSession))
+			dialogContent.WriteString("\n")
+		}
+		if strings.TrimSpace(m.renameWindow) != "" {
+			dialogContent.WriteString(theme.DialogLabel.Render("Window: "))
+			dialogContent.WriteString(theme.DialogValue.Render(m.renameWindow))
+			dialogContent.WriteString("\n")
+		}
+		dialogContent.WriteString("\n")
+	} else if strings.TrimSpace(m.renameSession) != "" {
+		dialogContent.WriteString(theme.DialogLabel.Render("Session: "))
+		dialogContent.WriteString(theme.DialogValue.Render(m.renameSession))
+		dialogContent.WriteString("\n\n")
+	}
+
+	inputWidth := 40
+	if m.width > 0 {
+		inputWidth = clamp(m.width-30, 20, 60)
+	}
+	m.renameInput.Width = inputWidth
+	dialogContent.WriteString(theme.DialogLabel.Render("New name: "))
+	dialogContent.WriteString(m.renameInput.View())
+	dialogContent.WriteString("\n\n")
+
+	dialogContent.WriteString(theme.DialogChoiceKey.Render("enter"))
+	dialogContent.WriteString(theme.DialogChoiceSep.Render(" confirm • "))
+	dialogContent.WriteString(theme.DialogChoiceKey.Render("esc"))
+	dialogContent.WriteString(theme.DialogChoiceSep.Render(" cancel"))
+
+	dialog := dialogStyle.Render(dialogContent.String())
+	return m.overlayDialog(dialog)
+}
+
+func (m Model) viewProjectRootSetup() string {
+	var dialogContent strings.Builder
+
+	dialogContent.WriteString(dialogTitleStyle.Render("Project Roots"))
+	dialogContent.WriteString("\n\n")
+	dialogContent.WriteString(theme.DialogNote.Render("Comma-separated list of folders to scan for git projects."))
+	dialogContent.WriteString("\n\n")
+
+	inputWidth := 60
+	if m.width > 0 {
+		inputWidth = clamp(m.width-30, 24, 80)
+	}
+	m.projectRootInput.Width = inputWidth
+	dialogContent.WriteString(theme.DialogLabel.Render("Roots: "))
+	dialogContent.WriteString(m.projectRootInput.View())
+	dialogContent.WriteString("\n\n")
+
+	dialogContent.WriteString(theme.DialogChoiceKey.Render("enter"))
+	dialogContent.WriteString(theme.DialogChoiceSep.Render(" save • "))
+	dialogContent.WriteString(theme.DialogChoiceKey.Render("esc"))
+	dialogContent.WriteString(theme.DialogChoiceSep.Render(" cancel"))
+
+	dialog := dialogStyle.Render(dialogContent.String())
+	return m.overlayDialog(dialog)
+}
+
 func (m Model) overlayDialog(dialog string) string {
 	if m.width == 0 || m.height == 0 {
 		return appStyle.Render(dialog)
@@ -372,6 +448,21 @@ func (m Model) viewLayoutPicker() string {
 	return overlayCenteredSized(base, dialog, m.width, m.height, overlayW, overlayH)
 }
 
+func (m Model) viewCommandPalette() string {
+	if m.width == 0 || m.height == 0 {
+		return ""
+	}
+	base := appStyle.Render(theme.ListDimmed.Render(m.viewDashboardContent()))
+	listW := m.commandPalette.Width()
+	listH := m.commandPalette.Height()
+	frameW, frameH := dialogStyle.GetFrameSize()
+	overlayW := listW + frameW
+	overlayH := listH + frameH
+	content := lipgloss.NewStyle().Width(listW).Height(listH).Render(m.commandPalette.View())
+	dialog := dialogStyle.Width(overlayW).Height(overlayH).Render(content)
+	return overlayCenteredSized(base, dialog, m.width, m.height, overlayW, overlayH)
+}
+
 func (m Model) viewHelp() string {
 	var left strings.Builder
 	left.WriteString("Navigation\n")
@@ -391,10 +482,11 @@ func (m Model) viewHelp() string {
 	right.WriteString("Window\n")
 	right.WriteString("  space Toggle window list\n")
 	right.WriteString("\nTmux\n")
-	right.WriteString("  prefix+g Switch to dashboard\n")
+	right.WriteString("  prefix+g Open dashboard popup\n")
 	right.WriteString("\nOther\n")
 	right.WriteString("  r     Refresh\n")
 	right.WriteString("  e     Edit config\n")
+	right.WriteString("  ^p    Command palette\n")
 	right.WriteString("  /     Filter sessions\n")
 	right.WriteString("  ?     Close help\n")
 	right.WriteString("  q     Quit\n")
@@ -693,7 +785,7 @@ func emptyStateMessage() string {
 		"Tips:",
 		"  • Run 'peakypanes init' to create a global config",
 		"  • Run 'peakypanes start' in a project directory",
-		"  • Press 'o' to scan for git projects in ~/projects",
+		"  • Press 'o' to scan for git projects (set dashboard.project_roots)",
 	}, "\n")
 }
 

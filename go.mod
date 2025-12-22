@@ -1,4 +1,4 @@
-module github.com/kregenrek/tmuxman
+module github.com/regenrek/peakypanes
 
 go 1.23.5
 

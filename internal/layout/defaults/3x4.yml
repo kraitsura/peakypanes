@@ -4,7 +4,7 @@ description: "Generic 3x4 grid (12 panes)"
 settings:
   bind_keys:
     - key: g
-      action: "switch-client -t peakypanes"
+      action: "run-shell \"peakypanes popup\""
 
 grid: 3x4
 window: grid

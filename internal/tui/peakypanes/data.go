@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/kregenrek/tmuxman/internal/layout"
-	"github.com/kregenrek/tmuxman/internal/tmuxctl"
+	"github.com/regenrek/peakypanes/internal/layout"
+	"github.com/regenrek/peakypanes/internal/tmuxctl"
 	"gopkg.in/yaml.v3"
 )
 
@@ -94,6 +94,10 @@ func defaultDashboardConfig(cfg layout.DashboardConfig) (DashboardConfig, error)
 	if previewMode != "grid" && previewMode != "layout" {
 		return DashboardConfig{}, fmt.Errorf("invalid preview_mode %q (use grid or layout)", previewMode)
 	}
+	projectRoots := normalizeProjectRoots(cfg.ProjectRoots)
+	if len(projectRoots) == 0 {
+		projectRoots = defaultProjectRoots()
+	}
 	matcher, err := compileStatusMatcher(cfg.StatusRegex)
 	if err != nil {
 		return DashboardConfig{}, err
@@ -107,7 +111,37 @@ func defaultDashboardConfig(cfg layout.DashboardConfig) (DashboardConfig, error)
 		ShowThumbnails:  showThumbnails,
 		StatusMatcher:   matcher,
 		PreviewMode:     previewMode,
+		ProjectRoots:    projectRoots,
 	}, nil
+}
+
+func defaultProjectRoots() []string {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return nil
+	}
+	return []string{filepath.Join(home, "projects")}
+}
+
+func normalizeProjectRoots(roots []string) []string {
+	if len(roots) == 0 {
+		return nil
+	}
+	seen := make(map[string]struct{})
+	var out []string
+	for _, root := range roots {
+		root = strings.TrimSpace(root)
+		if root == "" {
+			continue
+		}
+		root = filepath.Clean(expandPath(root))
+		if _, ok := seen[root]; ok {
+			continue
+		}
+		seen[root] = struct{}{}
+		out = append(out, root)
+	}
+	return out
 }
 
 func loadConfig(path string) (*layout.Config, error) {
@@ -126,7 +160,7 @@ func loadConfig(path string) (*layout.Config, error) {
 }
 
 func buildDashboardData(ctx context.Context, client *tmuxctl.Client, input tmuxSnapshotInput) tmuxSnapshotResult {
-	result := tmuxSnapshotResult{Settings: input.Settings, RawConfig: input.Config}
+	result := tmuxSnapshotResult{Settings: input.Settings, RawConfig: input.Config, Version: input.Version}
 	cfg := input.Config
 	settings := input.Settings
 	matcher := settings.StatusMatcher

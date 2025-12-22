@@ -15,9 +15,9 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/kregenrek/tmuxman/internal/layout"
-	"github.com/kregenrek/tmuxman/internal/tmuxctl"
-	"github.com/kregenrek/tmuxman/internal/tui/theme"
+	"github.com/regenrek/peakypanes/internal/layout"
+	"github.com/regenrek/peakypanes/internal/tmuxctl"
+	"github.com/regenrek/peakypanes/internal/tui/theme"
 )
 
 // Styles - using centralized theme for consistency
@@ -30,46 +30,48 @@ var (
 // Key bindings
 
 type dashboardKeyMap struct {
-	projectLeft   key.Binding
-	projectRight  key.Binding
-	sessionUp     key.Binding
-	sessionDown   key.Binding
-	windowUp      key.Binding
-	windowDown    key.Binding
-	attach        key.Binding
-	newSession    key.Binding
-	openTerminal  key.Binding
-	toggleWindows key.Binding
-	openProject   key.Binding
-	refresh       key.Binding
-	editConfig    key.Binding
-	kill          key.Binding
-	closeProject  key.Binding
-	help          key.Binding
-	quit          key.Binding
-	filter        key.Binding
+	projectLeft    key.Binding
+	projectRight   key.Binding
+	sessionUp      key.Binding
+	sessionDown    key.Binding
+	windowUp       key.Binding
+	windowDown     key.Binding
+	attach         key.Binding
+	newSession     key.Binding
+	openTerminal   key.Binding
+	toggleWindows  key.Binding
+	openProject    key.Binding
+	commandPalette key.Binding
+	refresh        key.Binding
+	editConfig     key.Binding
+	kill           key.Binding
+	closeProject   key.Binding
+	help           key.Binding
+	quit           key.Binding
+	filter         key.Binding
 }
 
 func newDashboardKeyMap() *dashboardKeyMap {
 	return &dashboardKeyMap{
-		projectLeft:   key.NewBinding(key.WithKeys("left"), key.WithHelp("←", "project")),
-		projectRight:  key.NewBinding(key.WithKeys("right"), key.WithHelp("→", "project")),
-		sessionUp:     key.NewBinding(key.WithKeys("up"), key.WithHelp("↑", "session")),
-		sessionDown:   key.NewBinding(key.WithKeys("down"), key.WithHelp("↓", "session")),
-		windowUp:      key.NewBinding(key.WithKeys("shift+up"), key.WithHelp("⇧↑", "window")),
-		windowDown:    key.NewBinding(key.WithKeys("shift+down"), key.WithHelp("⇧↓", "window")),
-		attach:        key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "attach")),
-		newSession:    key.NewBinding(key.WithKeys("n", "s"), key.WithHelp("n", "new session")),
-		openTerminal:  key.NewBinding(key.WithKeys("t"), key.WithHelp("t", "new terminal")),
-		toggleWindows: key.NewBinding(key.WithKeys(" "), key.WithHelp("space", "windows")),
-		openProject:   key.NewBinding(key.WithKeys("o"), key.WithHelp("o", "open project")),
-		refresh:       key.NewBinding(key.WithKeys("r"), key.WithHelp("r", "refresh")),
-		editConfig:    key.NewBinding(key.WithKeys("e"), key.WithHelp("e", "edit config")),
-		kill:          key.NewBinding(key.WithKeys("K"), key.WithHelp("K", "kill session")),
-		closeProject:  key.NewBinding(key.WithKeys("c"), key.WithHelp("c", "close project")),
-		help:          key.NewBinding(key.WithKeys("?"), key.WithHelp("?", "help")),
-		quit:          key.NewBinding(key.WithKeys("q", "ctrl+c"), key.WithHelp("q", "quit")),
-		filter:        key.NewBinding(key.WithKeys("/"), key.WithHelp("/", "filter")),
+		projectLeft:    key.NewBinding(key.WithKeys("left"), key.WithHelp("←", "project")),
+		projectRight:   key.NewBinding(key.WithKeys("right"), key.WithHelp("→", "project")),
+		sessionUp:      key.NewBinding(key.WithKeys("up"), key.WithHelp("↑", "session")),
+		sessionDown:    key.NewBinding(key.WithKeys("down"), key.WithHelp("↓", "session")),
+		windowUp:       key.NewBinding(key.WithKeys("shift+up"), key.WithHelp("⇧↑", "window")),
+		windowDown:     key.NewBinding(key.WithKeys("shift+down"), key.WithHelp("⇧↓", "window")),
+		attach:         key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "attach")),
+		newSession:     key.NewBinding(key.WithKeys("n", "s"), key.WithHelp("n", "new session")),
+		openTerminal:   key.NewBinding(key.WithKeys("t"), key.WithHelp("t", "new terminal")),
+		toggleWindows:  key.NewBinding(key.WithKeys(" "), key.WithHelp("space", "windows")),
+		openProject:    key.NewBinding(key.WithKeys("o"), key.WithHelp("o", "open project")),
+		commandPalette: key.NewBinding(key.WithKeys("ctrl+p"), key.WithHelp("^p", "commands")),
+		refresh:        key.NewBinding(key.WithKeys("r"), key.WithHelp("r", "refresh")),
+		editConfig:     key.NewBinding(key.WithKeys("e"), key.WithHelp("e", "edit config")),
+		kill:           key.NewBinding(key.WithKeys("K"), key.WithHelp("K", "kill session")),
+		closeProject:   key.NewBinding(key.WithKeys("c"), key.WithHelp("c", "close project")),
+		help:           key.NewBinding(key.WithKeys("?"), key.WithHelp("?", "help")),
+		quit:           key.NewBinding(key.WithKeys("q", "ctrl+c"), key.WithHelp("q", "quit")),
+		filter:         key.NewBinding(key.WithKeys("/"), key.WithHelp("/", "filter")),
 	}
 }
 
@@ -95,16 +97,27 @@ type Model struct {
 	filterInput  textinput.Model
 	filterActive bool
 
-	projectPicker list.Model
-	layoutPicker  list.Model
-	gitProjects   []GitProject
+	projectPicker  list.Model
+	layoutPicker   list.Model
+	commandPalette list.Model
+	gitProjects    []GitProject
 
 	confirmSession string
 	confirmProject string
 	confirmClose   string
 
+	renameInput       textinput.Model
+	renameSession     string
+	renameWindow      string
+	renameWindowIndex string
+
+	projectRootInput textinput.Model
+
 	toast      toastMessage
 	refreshing bool
+
+	selectionVersion uint64
+	refreshInFlight  int
 }
 
 // NewModel creates a new peakypanes TUI model.
@@ -134,6 +147,12 @@ func NewModel(client *tmuxctl.Client) (*Model, error) {
 
 	m.setupProjectPicker()
 	m.setupLayoutPicker()
+	m.setupCommandPalette()
+
+	configExists := true
+	if _, err := os.Stat(configPath); os.IsNotExist(err) {
+		configExists = false
+	}
 
 	cfg, err := loadConfig(configPath)
 	if err != nil {
@@ -146,11 +165,15 @@ func NewModel(client *tmuxctl.Client) (*Model, error) {
 	}
 	m.settings = settings
 
+	if needsProjectRootSetup(cfg, configExists) {
+		m.openProjectRootSetup()
+	}
+
 	return m, nil
 }
 
 func (m *Model) Init() tea.Cmd {
-	m.refreshing = true
+	m.beginRefresh()
 	return tea.Batch(m.refreshCmd(), tickCmd(m.settings.RefreshInterval))
 }
 
@@ -160,9 +183,29 @@ func tickCmd(interval time.Duration) tea.Cmd {
 	})
 }
 
+func (m *Model) selectionRefreshCmd() tea.Cmd {
+	version := m.selectionVersion
+	return tea.Tick(200*time.Millisecond, func(time.Time) tea.Msg {
+		return selectionRefreshMsg{Version: version}
+	})
+}
+
+func (m *Model) beginRefresh() {
+	m.refreshInFlight++
+	m.refreshing = true
+}
+
+func (m *Model) endRefresh() {
+	if m.refreshInFlight > 0 {
+		m.refreshInFlight--
+	}
+	m.refreshing = m.refreshInFlight > 0
+}
+
 func (m Model) refreshCmd() tea.Cmd {
 	selection := m.selection
 	configPath := m.configPath
+	version := m.selectionVersion
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 		defer cancel()
@@ -180,7 +223,7 @@ func (m Model) refreshCmd() tea.Cmd {
 			warning += "dashboard: " + err.Error()
 			settings, _ = defaultDashboardConfig(layout.DashboardConfig{})
 		}
-		result := buildDashboardData(ctx, m.tmux, tmuxSnapshotInput{Selection: selection, Config: cfg, Settings: settings})
+		result := buildDashboardData(ctx, m.tmux, tmuxSnapshotInput{Selection: selection, Version: version, Config: cfg, Settings: settings})
 		result.Warning = warning
 		return tmuxSnapshotMsg{Result: result}
 	}
@@ -193,15 +236,22 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.height = msg.Height
 		m.projectPicker.SetSize(msg.Width-4, msg.Height-4)
 		m.setLayoutPickerSize()
+		m.setCommandPaletteSize()
 		return m, nil
 	case refreshTickMsg:
-		if !m.refreshing {
-			m.refreshing = true
+		if m.refreshInFlight == 0 {
+			m.beginRefresh()
 			return m, tea.Batch(m.refreshCmd(), tickCmd(m.settings.RefreshInterval))
 		}
 		return m, tickCmd(m.settings.RefreshInterval)
+	case selectionRefreshMsg:
+		if msg.Version != m.selectionVersion {
+			return m, nil
+		}
+		m.beginRefresh()
+		return m, m.refreshCmd()
 	case tmuxSnapshotMsg:
-		m.refreshing = false
+		m.endRefresh()
 		if msg.Result.Err != nil {
 			m.setToast("Refresh failed: "+msg.Result.Err.Error(), toastError)
 			return m, nil
@@ -210,9 +260,13 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.setToast("Dashboard config: "+msg.Result.Warning, toastWarning)
 		}
 		m.data = msg.Result.Data
-		m.selection = msg.Result.Resolved
 		m.settings = msg.Result.Settings
 		m.config = msg.Result.RawConfig
+		if msg.Result.Version == m.selectionVersion {
+			m.selection = msg.Result.Resolved
+		} else {
+			m.selection = resolveSelection(m.data.Projects, m.selection)
+		}
 		return m, nil
 	case SuccessMsg:
 		m.setToast(msg.Message, toastSuccess)
@@ -226,6 +280,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case ErrorMsg:
 		m.setToast(msg.Error(), toastError)
 		return m, nil
+	case exitAfterAttachMsg:
+		return m, tea.Quit
 	case tea.KeyMsg:
 		switch m.state {
 		case StateDashboard:
@@ -240,6 +296,12 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.updateConfirmCloseProject(msg)
 		case StateHelp:
 			return m.updateHelp(msg)
+		case StateCommandPalette:
+			return m.updateCommandPalette(msg)
+		case StateRenameSession, StateRenameWindow:
+			return m.updateRename(msg)
+		case StateProjectRootSetup:
+			return m.updateProjectRootSetup(msg)
 		}
 	}
 
@@ -252,6 +314,11 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if m.state == StateLayoutPicker {
 		var cmd tea.Cmd
 		m.layoutPicker, cmd = m.layoutPicker.Update(msg)
+		return m, cmd
+	}
+	if m.state == StateCommandPalette {
+		var cmd tea.Cmd
+		m.commandPalette, cmd = m.commandPalette.Update(msg)
 		return m, cmd
 	}
 
@@ -285,16 +352,22 @@ func (m *Model) updateDashboard(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch {
 	case key.Matches(msg, m.keys.projectLeft):
 		m.selectProject(-1)
+		return m, m.selectionRefreshCmd()
 	case key.Matches(msg, m.keys.projectRight):
 		m.selectProject(1)
+		return m, m.selectionRefreshCmd()
 	case key.Matches(msg, m.keys.sessionUp):
 		m.selectSession(-1)
+		return m, m.selectionRefreshCmd()
 	case key.Matches(msg, m.keys.sessionDown):
 		m.selectSession(1)
+		return m, m.selectionRefreshCmd()
 	case key.Matches(msg, m.keys.windowUp):
 		m.selectWindow(-1)
+		return m, m.selectionRefreshCmd()
 	case key.Matches(msg, m.keys.windowDown):
 		m.selectWindow(1)
+		return m, m.selectionRefreshCmd()
 	case key.Matches(msg, m.keys.attach):
 		return m, m.attachOrStart()
 	case key.Matches(msg, m.keys.newSession):
@@ -307,9 +380,11 @@ func (m *Model) updateDashboard(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case key.Matches(msg, m.keys.openProject):
 		m.openProjectPicker()
 		return m, nil
+	case key.Matches(msg, m.keys.commandPalette):
+		return m, m.openCommandPalette()
 	case key.Matches(msg, m.keys.refresh):
 		m.setToast("Refreshing...", toastInfo)
-		m.refreshing = true
+		m.beginRefresh()
 		return m, m.refreshCmd()
 	case key.Matches(msg, m.keys.editConfig):
 		return m, m.editConfig()
@@ -356,6 +431,7 @@ func (m *Model) updateProjectPicker(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.selection.Project = item.Name
 			m.selection.Session = ""
 			m.selection.Window = ""
+			m.selectionVersion++
 			return m, m.startSessionAtPathDetached(item.Path)
 		}
 		m.state = StateDashboard
@@ -396,6 +472,276 @@ func (m *Model) updateLayoutPicker(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	m.layoutPicker, cmd = m.layoutPicker.Update(msg)
 	return m, cmd
+}
+
+func (m *Model) updateCommandPalette(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "esc", "q":
+		m.state = StateDashboard
+		return m, nil
+	case "enter":
+		if item, ok := m.commandPalette.SelectedItem().(CommandItem); ok {
+			m.state = StateDashboard
+			if item.Run != nil {
+				return m, item.Run(m)
+			}
+		}
+		m.state = StateDashboard
+		return m, nil
+	}
+
+	if m.commandPalette.FilterState() == list.Filtering {
+		switch msg.String() {
+		case "up", "ctrl+p":
+			m.commandPalette.CursorUp()
+			return m, nil
+		case "down", "ctrl+n":
+			m.commandPalette.CursorDown()
+			return m, nil
+		}
+	}
+
+	var cmd tea.Cmd
+	m.commandPalette, cmd = m.commandPalette.Update(msg)
+	return m, cmd
+}
+
+func (m *Model) initRenameInput(value, placeholder string) {
+	input := textinput.New()
+	input.Prompt = ""
+	input.Placeholder = placeholder
+	input.CharLimit = 80
+	input.Width = 40
+	input.SetValue(value)
+	input.CursorEnd()
+	input.Focus()
+	m.renameInput = input
+}
+
+func (m *Model) openRenameSession() {
+	session := m.selectedSession()
+	if session == nil {
+		m.setToast("No session selected", toastWarning)
+		return
+	}
+	if session.Status == StatusStopped {
+		m.setToast("Session not running", toastWarning)
+		return
+	}
+	m.renameSession = session.Name
+	m.renameWindow = ""
+	m.renameWindowIndex = ""
+	m.initRenameInput(session.Name, "new session name")
+	m.state = StateRenameSession
+}
+
+func (m *Model) openRenameWindow() {
+	session := m.selectedSession()
+	if session == nil {
+		m.setToast("No session selected", toastWarning)
+		return
+	}
+	if session.Status == StatusStopped {
+		m.setToast("Session not running", toastWarning)
+		return
+	}
+	window := selectedWindow(session, m.selection.Window)
+	if window == nil {
+		m.setToast("No window selected", toastWarning)
+		return
+	}
+	m.renameSession = session.Name
+	m.renameWindow = window.Name
+	m.renameWindowIndex = window.Index
+	m.initRenameInput(window.Name, "new window name")
+	m.state = StateRenameWindow
+}
+
+func (m *Model) updateRename(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "esc":
+		m.state = StateDashboard
+		return m, nil
+	case "enter":
+		return m, m.applyRename()
+	}
+
+	var cmd tea.Cmd
+	m.renameInput, cmd = m.renameInput.Update(msg)
+	return m, cmd
+}
+
+func (m *Model) applyRename() tea.Cmd {
+	newName := strings.TrimSpace(m.renameInput.Value())
+	if newName == "" {
+		m.setToast("Name cannot be empty", toastWarning)
+		return nil
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	switch m.state {
+	case StateRenameSession:
+		if newName == m.renameSession {
+			m.state = StateDashboard
+			m.setToast("Session name unchanged", toastInfo)
+			return nil
+		}
+		if err := m.tmux.RenameSession(ctx, m.renameSession, newName); err != nil {
+			m.setToast("Rename failed: "+err.Error(), toastError)
+			return nil
+		}
+		if m.selection.Session == m.renameSession {
+			m.selection.Session = newName
+		}
+		if m.expandedSessions[m.renameSession] {
+			delete(m.expandedSessions, m.renameSession)
+			m.expandedSessions[newName] = true
+		}
+		m.selectionVersion++
+		m.state = StateDashboard
+		m.setToast("Renamed session to "+newName, toastSuccess)
+		return m.refreshCmd()
+	case StateRenameWindow:
+		if newName == m.renameWindow {
+			m.state = StateDashboard
+			m.setToast("Window name unchanged", toastInfo)
+			return nil
+		}
+		if err := m.tmux.RenameWindow(ctx, m.renameSession, m.renameWindowIndex, newName); err != nil {
+			m.setToast("Rename failed: "+err.Error(), toastError)
+			return nil
+		}
+		m.selectionVersion++
+		m.state = StateDashboard
+		m.setToast("Renamed window to "+newName, toastSuccess)
+		return m.refreshCmd()
+	default:
+		m.state = StateDashboard
+	}
+	return nil
+}
+
+func needsProjectRootSetup(cfg *layout.Config, configExists bool) bool {
+	if cfg == nil {
+		return true
+	}
+	if !configExists {
+		return true
+	}
+	if len(cfg.Dashboard.ProjectRoots) > 0 {
+		return false
+	}
+	if len(cfg.Projects) > 0 {
+		return false
+	}
+	return true
+}
+
+func (m *Model) openProjectRootSetup() {
+	roots := normalizeProjectRoots(m.config.Dashboard.ProjectRoots)
+	if len(roots) == 0 {
+		roots = defaultProjectRoots()
+	}
+	input := textinput.New()
+	input.Prompt = ""
+	input.Placeholder = "~/projects"
+	input.CharLimit = 200
+	input.Width = 60
+	input.SetValue(strings.Join(roots, ", "))
+	input.CursorEnd()
+	input.Focus()
+	m.projectRootInput = input
+	m.state = StateProjectRootSetup
+}
+
+func (m *Model) updateProjectRootSetup(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "esc":
+		m.state = StateDashboard
+		m.setToast("Using default project roots (edit config to customize)", toastInfo)
+		return m, nil
+	case "enter":
+		return m, m.applyProjectRootSetup()
+	}
+
+	var cmd tea.Cmd
+	m.projectRootInput, cmd = m.projectRootInput.Update(msg)
+	return m, cmd
+}
+
+func (m *Model) applyProjectRootSetup() tea.Cmd {
+	raw := strings.TrimSpace(m.projectRootInput.Value())
+	roots := parseProjectRoots(raw)
+	if len(roots) == 0 {
+		m.setToast("Enter at least one project root", toastWarning)
+		return nil
+	}
+
+	valid, invalid := validateProjectRoots(roots)
+	if len(valid) == 0 {
+		m.setToast("No valid project roots found", toastError)
+		return nil
+	}
+	if err := m.saveProjectRoots(valid); err != nil {
+		m.setToast("Save failed: "+err.Error(), toastError)
+		return nil
+	}
+	if len(invalid) > 0 {
+		m.setToast("Some paths not found: "+strings.Join(invalid, ", "), toastWarning)
+	} else {
+		m.setToast("Saved project roots", toastSuccess)
+	}
+	m.state = StateDashboard
+	return nil
+}
+
+func parseProjectRoots(value string) []string {
+	if strings.TrimSpace(value) == "" {
+		return nil
+	}
+	parts := strings.Split(value, ",")
+	var roots []string
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		roots = append(roots, part)
+	}
+	return normalizeProjectRoots(roots)
+}
+
+func validateProjectRoots(roots []string) ([]string, []string) {
+	var valid []string
+	var invalid []string
+	for _, root := range roots {
+		info, err := os.Stat(root)
+		if err != nil || info == nil || !info.IsDir() {
+			invalid = append(invalid, root)
+			continue
+		}
+		valid = append(valid, root)
+	}
+	return valid, invalid
+}
+
+func (m *Model) saveProjectRoots(roots []string) error {
+	cfg, err := loadConfig(m.configPath)
+	if err != nil {
+		return err
+	}
+	cfg.Dashboard.ProjectRoots = roots
+	if err := os.MkdirAll(filepath.Dir(m.configPath), 0o755); err != nil {
+		return err
+	}
+	if err := layout.SaveConfig(m.configPath, cfg); err != nil {
+		return err
+	}
+	m.config = cfg
+	m.settings.ProjectRoots = normalizeProjectRoots(roots)
+	return nil
 }
 
 func (m *Model) updateConfirmKill(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -449,6 +795,12 @@ func (m *Model) View() string {
 		return m.viewConfirmCloseProject()
 	case StateHelp:
 		return m.viewHelp()
+	case StateCommandPalette:
+		return m.viewCommandPalette()
+	case StateRenameSession, StateRenameWindow:
+		return m.viewRename()
+	case StateProjectRootSetup:
+		return m.viewProjectRootSetup()
 	default:
 		return m.viewDashboard()
 	}
@@ -467,6 +819,7 @@ func (m *Model) selectProject(delta int) {
 		m.selection.Session = m.data.Projects[idx].Sessions[0].Name
 		m.selection.Window = m.data.Projects[idx].Sessions[0].ActiveWindow
 	}
+	m.selectionVersion++
 }
 
 func (m *Model) selectSession(delta int) {
@@ -482,6 +835,7 @@ func (m *Model) selectSession(delta int) {
 	idx = wrapIndex(idx+delta, len(filtered))
 	m.selection.Session = filtered[idx].Name
 	m.selection.Window = filtered[idx].ActiveWindow
+	m.selectionVersion++
 }
 
 func (m *Model) selectWindow(delta int) {
@@ -492,6 +846,7 @@ func (m *Model) selectWindow(delta int) {
 	idx := windowIndex(session.Windows, m.selection.Window)
 	idx = wrapIndex(idx+delta, len(session.Windows))
 	m.selection.Window = session.Windows[idx].Index
+	m.selectionVersion++
 }
 
 func (m *Model) toggleWindows() {
@@ -704,7 +1059,20 @@ func (m *Model) attachSession(session SessionItem) tea.Cmd {
 	if m.insideTmux {
 		return tea.ExecProcess(exec.Command("tmux", "switch-client", "-t", target), func(error) tea.Msg { return nil })
 	}
-	return tea.ExecProcess(exec.Command("tmux", "attach-session", "-t", target), func(error) tea.Msg { return nil })
+	return func() tea.Msg {
+		tmuxPath := m.tmux.Binary()
+		if tmuxPath == "" {
+			tmuxPath = "tmux"
+		}
+		cmd := exec.Command(tmuxPath, "attach-session", "-t", target)
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		cmd.Stdin = os.Stdin
+		if err := cmd.Run(); err != nil {
+			return ErrorMsg{Err: err, Context: "attach"}
+		}
+		return exitAfterAttachMsg{}
+	}
 }
 
 func (m *Model) startProject(session SessionItem) tea.Cmd {
@@ -843,39 +1211,41 @@ func (m *Model) setupProjectPicker() {
 func (m *Model) scanGitProjects() {
 	m.gitProjects = nil
 
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return
+	roots := m.settings.ProjectRoots
+	if len(roots) == 0 {
+		roots = defaultProjectRoots()
 	}
-
-	projectsDir := filepath.Join(home, "projects")
-	if _, err := os.Stat(projectsDir); os.IsNotExist(err) {
-		return
-	}
-
-	_ = filepath.WalkDir(projectsDir, func(path string, d os.DirEntry, err error) error {
-		if err != nil {
+	for _, root := range roots {
+		if strings.TrimSpace(root) == "" {
+			continue
+		}
+		if _, err := os.Stat(root); os.IsNotExist(err) {
+			continue
+		}
+		_ = filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
+			if err != nil {
+				return nil
+			}
+			if d.IsDir() && strings.HasPrefix(d.Name(), ".") {
+				return filepath.SkipDir
+			}
+			if d.IsDir() {
+				name := d.Name()
+				if name == "node_modules" || name == "vendor" || name == "__pycache__" || name == ".venv" || name == "venv" {
+					return filepath.SkipDir
+				}
+			}
+			if d.IsDir() && d.Name() != ".git" {
+				gitPath := filepath.Join(path, ".git")
+				if _, err := os.Stat(gitPath); err == nil {
+					relPath, _ := filepath.Rel(root, path)
+					m.gitProjects = append(m.gitProjects, GitProject{Name: relPath, Path: path})
+					return filepath.SkipDir
+				}
+			}
 			return nil
-		}
-		if d.IsDir() && strings.HasPrefix(d.Name(), ".") {
-			return filepath.SkipDir
-		}
-		if d.IsDir() {
-			name := d.Name()
-			if name == "node_modules" || name == "vendor" || name == "__pycache__" || name == ".venv" || name == "venv" {
-				return filepath.SkipDir
-			}
-		}
-		if d.IsDir() && d.Name() != ".git" {
-			gitPath := filepath.Join(path, ".git")
-			if _, err := os.Stat(gitPath); err == nil {
-				relPath, _ := filepath.Rel(projectsDir, path)
-				m.gitProjects = append(m.gitProjects, GitProject{Name: relPath, Path: path})
-				return filepath.SkipDir
-			}
-		}
-		return nil
-	})
+		})
+	}
 }
 
 func (m *Model) gitProjectsToItems() []list.Item {
@@ -956,6 +1326,127 @@ func (m *Model) setLayoutPickerSize() {
 		listH = clamp(m.height-vFrame, 6, m.height)
 	}
 	m.layoutPicker.SetSize(listW, listH)
+}
+
+// ===== Command palette =====
+
+func (m *Model) setupCommandPalette() {
+	delegate := newCommandPaletteDelegate()
+	delegate.ShowDescription = false
+	delegate.SetSpacing(0)
+	delegate.Styles.SelectedTitle = delegate.Styles.SelectedTitle.
+		Foreground(theme.TextPrimary).
+		BorderLeftForeground(theme.Secondary)
+
+	l := list.New(nil, delegate, 0, 0)
+	l.Title = "⌘ Command Palette"
+	l.Styles.Title = theme.TitleAlt
+	l.SetShowStatusBar(true)
+	l.SetFilteringEnabled(true)
+	l.SetStatusBarItemName("command", "commands")
+	m.commandPalette = l
+}
+
+func (m *Model) openCommandPalette() tea.Cmd {
+	m.setCommandPaletteSize()
+	m.commandPalette.SetFilterState(list.Filtering)
+	cmd := m.commandPalette.SetItems(m.commandPaletteItems())
+	m.state = StateCommandPalette
+	return cmd
+}
+
+func (m *Model) setCommandPaletteSize() {
+	if m.width <= 0 || m.height <= 0 {
+		return
+	}
+	hFrame, vFrame := dialogStyle.GetFrameSize()
+	availableW := m.width - 6
+	availableH := m.height - 4
+	if availableW < 30 {
+		availableW = m.width
+	}
+	if availableH < 10 {
+		availableH = m.height
+	}
+	desiredW := clamp(availableW, 46, 100)
+	desiredH := clamp(availableH, 12, 26)
+	listW := desiredW - hFrame
+	listH := desiredH - vFrame
+	if listW < 20 {
+		listW = clamp(m.width-hFrame, 20, m.width)
+	}
+	if listH < 6 {
+		listH = clamp(m.height-vFrame, 6, m.height)
+	}
+	m.commandPalette.SetSize(listW, listH)
+}
+
+func (m *Model) commandPaletteItems() []list.Item {
+	items := []CommandItem{
+		{Label: "Project: Open project picker", Desc: "Scan project roots and create session", Run: func(m *Model) tea.Cmd {
+			m.openProjectPicker()
+			return nil
+		}},
+		{Label: "Project: Set project roots", Desc: "Choose folders to scan for projects", Run: func(m *Model) tea.Cmd {
+			m.openProjectRootSetup()
+			return nil
+		}},
+		{Label: "Project: Close project", Desc: "Kill all running sessions in project", Run: func(m *Model) tea.Cmd {
+			m.openCloseProjectConfirm()
+			return nil
+		}},
+		{Label: "Session: Attach / start", Desc: "Attach to running session or start if stopped", Run: func(m *Model) tea.Cmd {
+			return m.attachOrStart()
+		}},
+		{Label: "Session: New session", Desc: "Pick a layout and create a new session", Run: func(m *Model) tea.Cmd {
+			m.openLayoutPicker()
+			return nil
+		}},
+		{Label: "Session: Open in new terminal", Desc: "Open session in Ghostty window", Run: func(m *Model) tea.Cmd {
+			return m.openSessionInNewTerminal()
+		}},
+		{Label: "Session: Kill session", Desc: "Kill the selected session", Run: func(m *Model) tea.Cmd {
+			m.openKillConfirm()
+			return nil
+		}},
+		{Label: "Session: Rename session", Desc: "Rename the selected session", Run: func(m *Model) tea.Cmd {
+			m.openRenameSession()
+			return nil
+		}},
+		{Label: "Window: Toggle window list", Desc: "Expand/collapse window list", Run: func(m *Model) tea.Cmd {
+			m.toggleWindows()
+			return nil
+		}},
+		{Label: "Window: Rename window", Desc: "Rename the selected window", Run: func(m *Model) tea.Cmd {
+			m.openRenameWindow()
+			return nil
+		}},
+		{Label: "Other: Refresh", Desc: "Refresh dashboard data", Run: func(m *Model) tea.Cmd {
+			m.setToast("Refreshing...", toastInfo)
+			m.refreshing = true
+			return m.refreshCmd()
+		}},
+		{Label: "Other: Edit config", Desc: "Open config in $EDITOR", Run: func(m *Model) tea.Cmd {
+			return m.editConfig()
+		}},
+		{Label: "Other: Filter sessions", Desc: "Filter session list", Run: func(m *Model) tea.Cmd {
+			m.filterActive = true
+			m.filterInput.Focus()
+			return nil
+		}},
+		{Label: "Other: Help", Desc: "Show help", Run: func(m *Model) tea.Cmd {
+			m.state = StateHelp
+			return nil
+		}},
+		{Label: "Other: Quit", Desc: "Exit PeakyPanes", Run: func(m *Model) tea.Cmd {
+			return tea.Quit
+		}},
+	}
+	out := make([]list.Item, len(items))
+	for i, item := range items {
+		out[i] = item
+	}
+	return out
 }
 
 func (m *Model) loadLayoutChoices(projectPath string) ([]LayoutChoice, error) {

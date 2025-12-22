@@ -26,7 +26,16 @@ dist/
 build/
 out/
 
+packages/
+node_modules/
+.npm/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
 # IDE and editor files
+
 .idea/
 .vscode/
 *.swp

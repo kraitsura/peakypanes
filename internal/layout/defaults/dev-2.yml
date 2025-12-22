@@ -4,7 +4,7 @@ description: "Simple two-pane layout: editor left, terminal right"
 settings:
   bind_keys:
     - key: g
-      action: "switch-client -t peakypanes"
+      action: "run-shell \"peakypanes popup\""
 
 windows:
   - name: dev

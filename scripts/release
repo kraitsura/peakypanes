@@ -1,0 +1,155 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() {
+  cat <<'USAGE'
+Usage: scripts/release X.Y.Z [--allow-branch] [--dry-run]
+
+Runs the full release flow:
+- validates repo state
+- runs tests (always)
+- tags and pushes
+- runs GoReleaser
+- builds npm packages
+- publishes npm packages (platform packages first, then meta)
+USAGE
+}
+
+die() {
+  echo "release: $*" >&2
+  exit 1
+}
+
+if [[ ${1:-} == "-h" || ${1:-} == "--help" || ${1:-} == "" ]]; then
+  usage
+  exit 1
+fi
+
+version_raw=$1
+shift
+allow_branch=false
+dry_run=false
+for arg in "$@"; do
+  case "$arg" in
+    --allow-branch) allow_branch=true ;;
+    --dry-run|-n) dry_run=true ;;
+    *) die "unknown flag: $arg" ;;
+  esac
+done
+
+version=${version_raw#v}
+if ! [[ $version =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
+  die "invalid version '$version_raw' (expected X.Y.Z)"
+fi
+
+tag="v$version"
+
+if ! command -v git >/dev/null 2>&1; then die "git not found"; fi
+if ! command -v go >/dev/null 2>&1; then die "go not found"; fi
+if ! command -v npm >/dev/null 2>&1; then die "npm not found"; fi
+if ! command -v goreleaser >/dev/null 2>&1; then
+  if [[ $dry_run == true ]]; then
+    echo "warning: goreleaser not found"
+  else
+    die "goreleaser not found"
+  fi
+fi
+
+if [[ -n $(git status --porcelain) ]]; then
+  if [[ $dry_run == true ]]; then
+    echo "warning: working tree not clean"
+  else
+    die "working tree not clean. Commit or stash changes first."
+  fi
+fi
+
+branch=$(git rev-parse --abbrev-ref HEAD)
+if [[ $allow_branch == false && $branch != "main" ]]; then
+  if [[ $dry_run == true ]]; then
+    echo "warning: current branch is '$branch' (expected 'main')"
+  else
+    die "current branch is '$branch'. Switch to 'main' or pass --allow-branch."
+  fi
+fi
+
+if [[ ! -f CHANGELOG.md ]]; then
+  die "CHANGELOG.md missing"
+fi
+if ! grep -q "^## ${version}\\b" CHANGELOG.md; then
+  if [[ $dry_run == true ]]; then
+    echo "warning: CHANGELOG.md missing '## ${version}' section"
+  else
+    die "CHANGELOG.md must include a '## ${version}' section"
+  fi
+fi
+
+npm whoami >/dev/null 2>&1 || {
+  if [[ $dry_run == true ]]; then
+    echo "warning: npm auth missing (run 'npm login')"
+  else
+    die "npm auth missing (run 'npm login')"
+  fi
+}
+
+if git rev-parse "$tag" >/dev/null 2>&1; then
+  if [[ $dry_run == true ]]; then
+    echo "warning: tag already exists: $tag"
+  else
+    die "tag already exists: $tag"
+  fi
+fi
+
+run() {
+  if [[ $dry_run == true ]]; then
+    echo "+ $*"
+    return 0
+  fi
+  "$@"
+}
+
+printf "Running tests...\n"
+go test ./...
+
+printf "Creating tag %s...\n" "$tag"
+run git tag "$tag"
+run git push origin HEAD --tags
+
+printf "Running GoReleaser...\n"
+run goreleaser release --clean
+
+printf "Building npm packages...\n"
+run npm run build:npm-packages
+
+if [[ ! -d packages/peakypanes ]]; then
+  if [[ $dry_run == true ]]; then
+    echo "warning: packages/peakypanes not found (npm build not run)"
+  else
+    die "packages/peakypanes not found (npm build failed)"
+  fi
+fi
+
+printf "Publishing platform packages...\n"
+platform_dirs=()
+while IFS= read -r dir; do
+  platform_dirs+=("$dir")
+done < <(find packages -maxdepth 1 -type d -name 'peakypanes-*' | sort)
+
+if [[ ${#platform_dirs[@]} -eq 0 ]]; then
+  if [[ $dry_run == true ]]; then
+    echo "warning: no platform packages found under packages/"
+  else
+    die "no platform packages found under packages/"
+  fi
+fi
+
+if [[ ${#platform_dirs[@]} -gt 0 ]]; then
+  for dir in "${platform_dirs[@]}"; do
+    echo "Publishing $dir"
+    run npm publish --access public "$dir"
+  done
+fi
+
+printf "Publishing meta package...\n"
+run npm publish --access public packages/peakypanes
+
+printf "Release complete: %s\n" "$tag"

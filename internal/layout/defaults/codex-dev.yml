@@ -4,7 +4,7 @@ description: "Codex dev grid (shell + codex panes)"
 settings:
   bind_keys:
     - key: g
-      action: "switch-client -t peakypanes"
+      action: "run-shell \"peakypanes popup\""
 
 grid: 2x3
 window: codex

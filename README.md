@@ -8,6 +8,9 @@
 
 **Tmux layout manager with YAML-based configuration.**
 
+![Peaky Panes Preview](assets/peakypanes-preview.jpg)
+
+
 Define your tmux layouts in YAML, share them with your team via git, and get consistent development environments everywhere.
 
 ## Features
@@ -19,10 +22,27 @@ Define your tmux layouts in YAML, share them with your team via git, and get con
 - 🔄 **Variable expansion** - Use `${EDITOR}`, `${PROJECT_PATH}`, etc.
 - 🎯 **Zero config** - Just run `peakypanes` in any directory
 - ⚙️ **Session-scoped tmux options** - Configure tmux per-session without affecting global config
+- 🪟 **Popup dashboard** - Open the UI as a tmux popup when available
+- ⌘ **Command palette** - Quick actions, including renaming sessions/windows
 
 ## Quick Start
 
 ### Install
+
+Using npm
+
+```bash
+npm i -g peakypanes
+peakypanes setup
+```
+
+Run once with npx
+
+```bash
+npx -y peakypanes setup
+```
+
+Using Go
 
 ```bash
 go install github.com/regenrek/peakypanes/cmd/peakypanes@latest
@@ -34,6 +54,11 @@ go install github.com/regenrek/peakypanes/cmd/peakypanes@latest
 ```bash
 cd your-project
 peakypanes
+```
+
+**Start a session (auto-detect layout):**
+```bash
+peakypanes start
 ```
 
 **Use a specific layout:**
@@ -112,6 +137,12 @@ tmux:
   # (tmux already reads ~/.tmux.conf or ~/.config/tmux/tmux.conf by default)
   config: ~/.config/tmux/tmux.conf
 
+# Dashboard UI settings (optional)
+# dashboard:
+#   project_roots:
+#     - ~/projects
+#     - ~/code
+
 # Custom layouts
 layouts:
   my-custom:
@@ -155,15 +186,22 @@ layout:
 ## Commands
 
 ```bash
-peakypanes                     # Open dashboard (tmux session: peakypanes)
-peakypanes dashboard           # Open dashboard directly (no tmux wrapper)
-peakypanes start               # Same as above
+peakypanes                     # Open dashboard (direct)
+peakypanes dashboard           # Open dashboard (direct)
+peakypanes dashboard --tmux-session  # Host dashboard in tmux session
+peakypanes dashboard --popup   # Open dashboard as a tmux popup
+peakypanes popup               # Open dashboard as a tmux popup
+peakypanes open                # Start/attach session in current directory
+peakypanes start               # Same as open
 peakypanes start --layout X    # Use specific layout
 peakypanes start --detach      # Create session without attaching
+peakypanes kill [session]      # Kill a tmux session
 peakypanes init                # Create global config
 peakypanes init --local        # Create .peakypanes.yml
 peakypanes layouts             # List available layouts
 peakypanes layouts export X    # Export layout YAML
+peakypanes clone user/repo     # Clone from GitHub and start session
+peakypanes setup               # Check external dependencies
 peakypanes version             # Show version
 ```
 
@@ -195,8 +233,10 @@ peakypanes layouts export codex-dev > .peakypanes.yml
 
 ## Dashboard UI
 
-Running `peakypanes` with no subcommand launches the dashboard UI inside a tmux session named `peakypanes`.
-Use `peakypanes dashboard` if you want to run the UI directly (no tmux wrapper).
+Running `peakypanes` with no subcommand opens the dashboard UI in the current terminal.
+Use `peakypanes dashboard --tmux-session` to host the dashboard in a dedicated tmux session.
+Use `peakypanes popup` (or `peakypanes dashboard --popup`) from inside tmux for a popup dashboard.
+If popups are unsupported, PeakyPanes opens a `peakypanes-dashboard` window in the current tmux session.
 
 The dashboard shows:
 - Projects on top (tabs)
@@ -218,14 +258,17 @@ Session
 - `n` new session (pick layout)
 - `t` open in new terminal window
 - `K` kill session
+- rename session via command palette (`ctrl+p`)
 
 Window
 - `space` toggle window list
+- rename window via command palette (`ctrl+p`)
 
 Tmux (inside session)
-- `prefix+g` switch to dashboard (tmux prefix is yours)
+- `prefix+g` open dashboard popup (tmux prefix is yours)
 
 Other
+- `ctrl+p` command palette
 - `r` refresh, `e` edit config, `/` filter, `q` quit
 
 ### Dashboard Config (optional)
@@ -259,7 +302,7 @@ settings:
     remain-on-exit: "on"
   bind_keys:
     - key: g
-      action: "switch-client -t peakypanes"
+      action: "run-shell \"peakypanes popup\""
 ```
 
 ## How Layout Detection Works

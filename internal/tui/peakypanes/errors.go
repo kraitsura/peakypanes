@@ -5,7 +5,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/kregenrek/tmuxman/internal/tui/theme"
+	"github.com/regenrek/peakypanes/internal/tui/theme"
 )
 
 // ErrorMsg is a tea.Msg for error handling in the TUI.
