@@ -5,6 +5,8 @@ This format is based on Keep a Changelog.
 
 ## Unreleased
 
+## 0.0.1 - 2025-12-22
+
 ### Added
 - npm distribution with per-platform optional dependency packages and a tiny launcher.
 - `peakypanes popup` and `peakypanes dashboard --popup` for tmux popup dashboards (with window fallback).
