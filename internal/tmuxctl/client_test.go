@@ -453,7 +453,7 @@ func TestSessionTimeoutContext(t *testing.T) {
 	client := &Client{bin: "tmux", run: runner.run}
 	_, err := client.EnsureSession(context.Background(), Options{
 		Session: "demo",
-		Timeout: 1 * time.Second,
+		Timeout: 5 * time.Second,
 		Attach:  false,
 	})
 	if err != nil {
