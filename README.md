@@ -37,10 +37,7 @@ peakypanes
 ```
 
 > [!TIP]
-> While `peakypanes setup` checks for dependencies, you can run `peakypanes` directly to open the dashboard. We recommend the npm install for the best experience.
-
-> npm packages are currently published for macOS and Linux.  
-> Windows users should install from the GitHub release or build with Go.
+> Run `peakypanes setup` to check dependencies
 
 **Run once with npx**
 
@@ -312,6 +309,11 @@ settings:
 3. Project entry in `~/.config/peakypanes/config.yml`
 4. Built-in `dev-3` layout (fallback)
 
+## Windows
+> npm packages are currently published for macOS and Linux.  
+> Windows users should install from the GitHub release or build with Go.
+
+
 ## For Teams
 
 1. Run `peakypanes init --local` in your project
@@ -322,3 +324,18 @@ settings:
 ## License
 
 MIT
+
+
+## Links
+
+- X/Twitter: [@kregenrek](https://x.com/kregenrek)
+- Bluesky: [@kevinkern.dev](https://bsky.app/profile/kevinkern.dev)
+
+## Courses
+- Learn Cursor AI: [Ultimate Cursor Course](https://www.instructa.ai/en/cursor-ai)
+- Learn to build software with AI: [AI Builder Hub](https://www.instructa.ai)
+
+## See my other projects:
+
+* [codefetch](https://github.com/regenrek/codefetch) - Turn code into Markdown for LLMs with one simple terminal command
+* [instructa](https://github.com/orgs/instructa/repositories) - Instructa Projects
