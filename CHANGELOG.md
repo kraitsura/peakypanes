@@ -8,6 +8,7 @@ This format is based on Keep a Changelog.
 ### Added
 - Sidebar icon system with size/ASCII fallbacks (`PEAKYPANES_ICON_SET`, `PEAKYPANES_ICON_SIZE`).
 - Command palette action for creating windows.
+- Dashboard keymap overrides via `dashboard.keymap` in the global config.
 
 ### Changed
 - Sidebar hierarchy styling (single caret, per-session spacing, no "Windows"/"Sessions" labels).

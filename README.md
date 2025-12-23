@@ -246,6 +246,7 @@ Navigation (always visible):
 - `ctrl+a/ctrl+d` project, `ctrl+w/ctrl+s` session, `tab/⇧tab` pane (across windows), `ctrl+g` help
 
 Key bindings (also shown in the help view):
+Keymap overrides are available in the global config (`~/.config/peakypanes/config.yml`).
 
 Project
 - `ctrl+o` open project picker (creates session detached; stay in dashboard)
@@ -285,6 +286,17 @@ dashboard:
   idle_seconds: 20
   show_thumbnails: true
   preview_mode: grid  # grid | layout
+  keymap:
+    project_left: ["ctrl+a"]
+    project_right: ["ctrl+d"]
+    session_up: ["ctrl+w"]
+    session_down: ["ctrl+s"]
+    pane_next: ["tab"]
+    pane_prev: ["shift+tab"]
+    toggle_windows: ["ctrl+u"]
+    command_palette: ["ctrl+p"]
+    help: ["ctrl+g"]
+    quit: ["ctrl+c"]
   status_regex:
     success: "(?i)done|finished|success|completed|✅"
     error: "(?i)error|failed|panic|❌"

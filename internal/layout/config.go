@@ -94,18 +94,42 @@ type AgentDetectionConfig struct {
 	Claude *bool `yaml:"claude,omitempty"`
 }
 
+// DashboardKeymapConfig defines dashboard key bindings.
+type DashboardKeymapConfig struct {
+	ProjectLeft    []string `yaml:"project_left,omitempty"`
+	ProjectRight   []string `yaml:"project_right,omitempty"`
+	SessionUp      []string `yaml:"session_up,omitempty"`
+	SessionDown    []string `yaml:"session_down,omitempty"`
+	PaneNext       []string `yaml:"pane_next,omitempty"`
+	PanePrev       []string `yaml:"pane_prev,omitempty"`
+	Attach         []string `yaml:"attach,omitempty"`
+	NewSession     []string `yaml:"new_session,omitempty"`
+	OpenTerminal   []string `yaml:"open_terminal,omitempty"`
+	ToggleWindows  []string `yaml:"toggle_windows,omitempty"`
+	OpenProject    []string `yaml:"open_project,omitempty"`
+	CommandPalette []string `yaml:"command_palette,omitempty"`
+	Refresh        []string `yaml:"refresh,omitempty"`
+	EditConfig     []string `yaml:"edit_config,omitempty"`
+	Kill           []string `yaml:"kill,omitempty"`
+	CloseProject   []string `yaml:"close_project,omitempty"`
+	Help           []string `yaml:"help,omitempty"`
+	Quit           []string `yaml:"quit,omitempty"`
+	Filter         []string `yaml:"filter,omitempty"`
+}
+
 // DashboardConfig configures the Peaky Panes dashboard UI.
 type DashboardConfig struct {
-	RefreshMS      int                  `yaml:"refresh_ms,omitempty"`
-	PreviewLines   int                  `yaml:"preview_lines,omitempty"`
-	PreviewCompact *bool                `yaml:"preview_compact,omitempty"`
-	ThumbnailLines int                  `yaml:"thumbnail_lines,omitempty"`
-	IdleSeconds    int                  `yaml:"idle_seconds,omitempty"`
-	ShowThumbnails *bool                `yaml:"show_thumbnails,omitempty"`
-	StatusRegex    StatusRegexConfig    `yaml:"status_regex,omitempty"`
-	PreviewMode    string               `yaml:"preview_mode,omitempty"` // grid | layout
-	ProjectRoots   []string             `yaml:"project_roots,omitempty"`
-	AgentDetection AgentDetectionConfig `yaml:"agent_detection,omitempty"`
+	RefreshMS      int                   `yaml:"refresh_ms,omitempty"`
+	PreviewLines   int                   `yaml:"preview_lines,omitempty"`
+	PreviewCompact *bool                 `yaml:"preview_compact,omitempty"`
+	ThumbnailLines int                   `yaml:"thumbnail_lines,omitempty"`
+	IdleSeconds    int                   `yaml:"idle_seconds,omitempty"`
+	ShowThumbnails *bool                 `yaml:"show_thumbnails,omitempty"`
+	StatusRegex    StatusRegexConfig     `yaml:"status_regex,omitempty"`
+	PreviewMode    string                `yaml:"preview_mode,omitempty"` // grid | layout
+	ProjectRoots   []string              `yaml:"project_roots,omitempty"`
+	AgentDetection AgentDetectionConfig  `yaml:"agent_detection,omitempty"`
+	Keymap         DashboardKeymapConfig `yaml:"keymap,omitempty"`
 }
 
 // TmuxSection holds tmux-specific config.

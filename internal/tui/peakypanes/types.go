@@ -150,6 +150,7 @@ type tmuxSnapshotResult struct {
 	Warning   string
 	RawConfig *layout.Config
 	Settings  DashboardConfig
+	Keymap    *dashboardKeyMap
 	Version   uint64
 }
 

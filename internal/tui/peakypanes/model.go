@@ -53,30 +53,6 @@ type dashboardKeyMap struct {
 	filter         key.Binding
 }
 
-func newDashboardKeyMap() *dashboardKeyMap {
-	return &dashboardKeyMap{
-		projectLeft:    key.NewBinding(key.WithKeys("ctrl+a"), key.WithHelp("ctrl+a", "project")),
-		projectRight:   key.NewBinding(key.WithKeys("ctrl+d"), key.WithHelp("ctrl+d", "project")),
-		sessionUp:      key.NewBinding(key.WithKeys("ctrl+w"), key.WithHelp("ctrl+w", "session")),
-		sessionDown:    key.NewBinding(key.WithKeys("ctrl+s"), key.WithHelp("ctrl+s", "session")),
-		paneNext:       key.NewBinding(key.WithKeys("tab"), key.WithHelp("tab", "pane")),
-		panePrev:       key.NewBinding(key.WithKeys("shift+tab"), key.WithHelp("⇧tab", "pane")),
-		attach:         key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "attach")),
-		newSession:     key.NewBinding(key.WithKeys("ctrl+n"), key.WithHelp("ctrl+n", "new session")),
-		openTerminal:   key.NewBinding(key.WithKeys("ctrl+t"), key.WithHelp("ctrl+t", "new terminal")),
-		toggleWindows:  key.NewBinding(key.WithKeys("ctrl+u"), key.WithHelp("ctrl+u", "windows")),
-		openProject:    key.NewBinding(key.WithKeys("ctrl+o"), key.WithHelp("ctrl+o", "open project")),
-		commandPalette: key.NewBinding(key.WithKeys("ctrl+p"), key.WithHelp("ctrl+p", "commands")),
-		refresh:        key.NewBinding(key.WithKeys("ctrl+r"), key.WithHelp("ctrl+r", "refresh")),
-		editConfig:     key.NewBinding(key.WithKeys("ctrl+e"), key.WithHelp("ctrl+e", "edit config")),
-		kill:           key.NewBinding(key.WithKeys("ctrl+x"), key.WithHelp("ctrl+x", "kill session")),
-		closeProject:   key.NewBinding(key.WithKeys("ctrl+b"), key.WithHelp("ctrl+b", "close project")),
-		help:           key.NewBinding(key.WithKeys("ctrl+g"), key.WithHelp("ctrl+g", "help")),
-		quit:           key.NewBinding(key.WithKeys("ctrl+c"), key.WithHelp("ctrl+c", "quit")),
-		filter:         key.NewBinding(key.WithKeys("ctrl+f"), key.WithHelp("ctrl+f", "filter")),
-	}
-}
-
 // Model implements tea.Model for peakypanes TUI.
 type Model struct {
 	tmux   *tmuxctl.Client
@@ -143,7 +119,6 @@ func NewModel(client *tmuxctl.Client) (*Model, error) {
 		state:              StateDashboard,
 		insideTmux:         os.Getenv("TMUX") != "" || os.Getenv("TMUX_PANE") != "",
 		configPath:         configPath,
-		keys:               newDashboardKeyMap(),
 		expandedSessions:   make(map[string]bool),
 		selectionByProject: make(map[string]selectionState),
 	}
@@ -188,6 +163,11 @@ func NewModel(client *tmuxctl.Client) (*Model, error) {
 		return nil, err
 	}
 	m.settings = settings
+	keys, err := buildDashboardKeyMap(cfg.Dashboard.Keymap)
+	if err != nil {
+		return nil, err
+	}
+	m.keys = keys
 
 	if needsProjectRootSetup(cfg, configExists) {
 		m.openProjectRootSetup()
@@ -230,6 +210,8 @@ func (m Model) refreshCmd() tea.Cmd {
 	selection := m.selection
 	configPath := m.configPath
 	version := m.selectionVersion
+	currentSettings := m.settings
+	currentKeys := m.keys
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 		defer cancel()
@@ -245,9 +227,18 @@ func (m Model) refreshCmd() tea.Cmd {
 				warning += "; "
 			}
 			warning += "dashboard: " + err.Error()
-			settings, _ = defaultDashboardConfig(layout.DashboardConfig{})
+			settings = currentSettings
+		}
+		keys, err := buildDashboardKeyMap(cfg.Dashboard.Keymap)
+		if err != nil {
+			if warning != "" {
+				warning += "; "
+			}
+			warning += "keymap: " + err.Error()
+			keys = currentKeys
 		}
 		result := buildDashboardData(ctx, m.tmux, tmuxSnapshotInput{Selection: selection, Version: version, Config: cfg, Settings: settings})
+		result.Keymap = keys
 		result.Warning = warning
 		return tmuxSnapshotMsg{Result: result}
 	}
@@ -287,6 +278,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.data = msg.Result.Data
 		m.settings = msg.Result.Settings
 		m.config = msg.Result.RawConfig
+		if msg.Result.Keymap != nil {
+			m.keys = msg.Result.Keymap
+		}
 		if msg.Result.Version == m.selectionVersion {
 			m.applySelection(msg.Result.Resolved)
 		} else {

@@ -5,6 +5,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/regenrek/peakypanes/internal/layout"
 )
 
 // TestExpandPath tests the path expansion helper
@@ -118,9 +119,9 @@ func TestGitProjectListItem(t *testing.T) {
 
 // TestKeyBindings tests key binding creation
 func TestKeyBindings(t *testing.T) {
-	km := newDashboardKeyMap()
-	if km == nil {
-		t.Fatal("newDashboardKeyMap() returned nil")
+	km, err := buildDashboardKeyMap(layout.DashboardKeymapConfig{})
+	if err != nil {
+		t.Fatalf("buildDashboardKeyMap() error: %v", err)
 	}
 
 	if !key.Matches(tea.KeyMsg{Type: tea.KeyCtrlA}, km.projectLeft) {

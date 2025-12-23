@@ -302,7 +302,18 @@ func (m Model) viewThumbnails(width int) string {
 }
 
 func (m Model) viewFooter(width int) string {
-	base := "ctrl+a/d ←/→ project · ctrl+w/s ↑/↓ session · tab/shift+tab pane · ctrl+p commands · ctrl+g help · ctrl+c quit"
+	projectKeys := joinKeyLabels(m.keys.projectLeft, m.keys.projectRight)
+	sessionKeys := joinKeyLabels(m.keys.sessionUp, m.keys.sessionDown)
+	paneKeys := joinKeyLabels(m.keys.paneNext, m.keys.panePrev)
+	base := fmt.Sprintf(
+		"%s ←/→ project · %s ↑/↓ session · %s pane · %s commands · %s help · %s quit",
+		projectKeys,
+		sessionKeys,
+		paneKeys,
+		keyLabel(m.keys.commandPalette),
+		keyLabel(m.keys.help),
+		keyLabel(m.keys.quit),
+	)
 	base = theme.ListDimmed.Render(base)
 	toast := m.toastText()
 	if toast == "" {
@@ -571,17 +582,17 @@ func (m Model) viewCommandPalette() string {
 func (m Model) viewHelp() string {
 	var left strings.Builder
 	left.WriteString("Navigation\n")
-	left.WriteString("  ctrl+a/ctrl+d Switch projects\n")
-	left.WriteString("  ctrl+w/ctrl+s Switch sessions\n")
-	left.WriteString("  tab/⇧tab Switch panes (across windows)\n")
+	left.WriteString(fmt.Sprintf("  %s Switch projects\n", joinKeyLabels(m.keys.projectLeft, m.keys.projectRight)))
+	left.WriteString(fmt.Sprintf("  %s Switch sessions\n", joinKeyLabels(m.keys.sessionUp, m.keys.sessionDown)))
+	left.WriteString(fmt.Sprintf("  %s Switch panes (across windows)\n", joinKeyLabels(m.keys.paneNext, m.keys.panePrev)))
 	left.WriteString("\nProject\n")
-	left.WriteString("  ctrl+o Open project picker\n")
-	left.WriteString("  ctrl+b Close project\n")
+	left.WriteString(fmt.Sprintf("  %s Open project picker\n", keyLabel(m.keys.openProject)))
+	left.WriteString(fmt.Sprintf("  %s Close project\n", keyLabel(m.keys.closeProject)))
 	left.WriteString("\nSession\n")
 	left.WriteString("  enter Attach/start session (when reply empty)\n")
-	left.WriteString("  ctrl+n New session (pick layout)\n")
-	left.WriteString("  ctrl+t Open in new terminal window\n")
-	left.WriteString("  ctrl+x Kill session\n")
+	left.WriteString(fmt.Sprintf("  %s New session (pick layout)\n", keyLabel(m.keys.newSession)))
+	left.WriteString(fmt.Sprintf("  %s Open in new terminal window\n", keyLabel(m.keys.openTerminal)))
+	left.WriteString(fmt.Sprintf("  %s Kill session\n", keyLabel(m.keys.kill)))
 	left.WriteString("\nPane\n")
 	left.WriteString("  type  Quick reply is always active\n")
 	left.WriteString("  enter Send quick reply\n")
@@ -589,16 +600,16 @@ func (m Model) viewHelp() string {
 
 	var right strings.Builder
 	right.WriteString("Window\n")
-	right.WriteString("  ctrl+u Toggle window list\n")
+	right.WriteString(fmt.Sprintf("  %s Toggle window list\n", keyLabel(m.keys.toggleWindows)))
 	right.WriteString("\nTmux\n")
 	right.WriteString("  prefix+g Open dashboard popup\n")
 	right.WriteString("\nOther\n")
-	right.WriteString("  ctrl+r Refresh\n")
-	right.WriteString("  ctrl+e Edit config\n")
-	right.WriteString("  ctrl+p Command palette\n")
-	right.WriteString("  ctrl+f Filter sessions\n")
-	right.WriteString("  ctrl+g Close help\n")
-	right.WriteString("  ctrl+c Quit\n")
+	right.WriteString(fmt.Sprintf("  %s Refresh\n", keyLabel(m.keys.refresh)))
+	right.WriteString(fmt.Sprintf("  %s Edit config\n", keyLabel(m.keys.editConfig)))
+	right.WriteString(fmt.Sprintf("  %s Command palette\n", keyLabel(m.keys.commandPalette)))
+	right.WriteString(fmt.Sprintf("  %s Filter sessions\n", keyLabel(m.keys.filter)))
+	right.WriteString(fmt.Sprintf("  %s Close help\n", keyLabel(m.keys.help)))
+	right.WriteString(fmt.Sprintf("  %s Quit\n", keyLabel(m.keys.quit)))
 
 	colWidth := 36
 	if m.width > 0 {
