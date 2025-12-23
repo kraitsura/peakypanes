@@ -87,10 +87,11 @@ type Model struct {
 	configPath string
 	insideTmux bool
 
-	data      DashboardData
-	selection selectionState
-	settings  DashboardConfig
-	config    *layout.Config
+	data               DashboardData
+	selection          selectionState
+	selectionByProject map[string]selectionState
+	settings           DashboardConfig
+	config             *layout.Config
 
 	keys *dashboardKeyMap
 
@@ -138,12 +139,13 @@ func NewModel(client *tmuxctl.Client) (*Model, error) {
 	}
 
 	m := &Model{
-		tmux:             client,
-		state:            StateDashboard,
-		insideTmux:       os.Getenv("TMUX") != "" || os.Getenv("TMUX_PANE") != "",
-		configPath:       configPath,
-		keys:             newDashboardKeyMap(),
-		expandedSessions: make(map[string]bool),
+		tmux:               client,
+		state:              StateDashboard,
+		insideTmux:         os.Getenv("TMUX") != "" || os.Getenv("TMUX_PANE") != "",
+		configPath:         configPath,
+		keys:               newDashboardKeyMap(),
+		expandedSessions:   make(map[string]bool),
+		selectionByProject: make(map[string]selectionState),
 	}
 
 	m.filterInput = textinput.New()
@@ -286,9 +288,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.settings = msg.Result.Settings
 		m.config = msg.Result.RawConfig
 		if msg.Result.Version == m.selectionVersion {
-			m.selection = msg.Result.Resolved
+			m.applySelection(msg.Result.Resolved)
 		} else {
-			m.selection = resolveSelection(m.data.Projects, m.selection)
+			m.applySelection(resolveSelection(m.data.Projects, m.selection))
 		}
 		m.syncExpandedSessions()
 		return m, nil
@@ -451,11 +453,13 @@ func (m *Model) updateProjectPicker(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "enter":
 		if item, ok := m.projectPicker.SelectedItem().(GitProject); ok {
 			m.setState(StateDashboard)
+			m.rememberSelection(m.selection)
 			m.selection.Project = item.Name
 			m.selection.Session = ""
 			m.selection.Window = ""
 			m.selection.Pane = ""
 			m.selectionVersion++
+			m.rememberSelection(m.selection)
 			return m, m.startSessionAtPathDetached(item.Path)
 		}
 		m.setState(StateDashboard)
@@ -691,6 +695,7 @@ func (m *Model) applyRename() tea.Cmd {
 			m.expandedSessions[newName] = true
 		}
 		m.selectionVersion++
+		m.rememberSelection(m.selection)
 		m.setState(StateDashboard)
 		m.setToast("Renamed session to "+newName, toastSuccess)
 		return m.refreshCmd()
@@ -705,6 +710,7 @@ func (m *Model) applyRename() tea.Cmd {
 			return nil
 		}
 		m.selectionVersion++
+		m.rememberSelection(m.selection)
 		m.setState(StateDashboard)
 		m.setToast("Renamed window to "+newName, toastSuccess)
 		return m.refreshCmd()
@@ -964,18 +970,44 @@ func (m *Model) syncExpandedSessions() {
 
 // ===== Selection helpers =====
 
+func (m *Model) rememberSelection(sel selectionState) {
+	if sel.Project == "" {
+		return
+	}
+	if m.selectionByProject == nil {
+		m.selectionByProject = make(map[string]selectionState)
+	}
+	m.selectionByProject[sel.Project] = sel
+}
+
+func (m *Model) selectionForProject(project string) selectionState {
+	if project == "" {
+		return selectionState{}
+	}
+	if m.selectionByProject != nil {
+		if sel, ok := m.selectionByProject[project]; ok {
+			sel.Project = project
+			return sel
+		}
+	}
+	return selectionState{Project: project}
+}
+
+func (m *Model) applySelection(sel selectionState) {
+	m.selection = sel
+	m.rememberSelection(sel)
+}
+
 func (m *Model) selectProject(delta int) {
 	if len(m.data.Projects) == 0 {
 		return
 	}
+	m.rememberSelection(m.selection)
 	idx := m.projectIndex(m.selection.Project)
 	idx = wrapIndex(idx+delta, len(m.data.Projects))
-	m.selection.Project = m.data.Projects[idx].Name
-	if len(m.data.Projects[idx].Sessions) > 0 {
-		m.selection.Session = m.data.Projects[idx].Sessions[0].Name
-		m.selection.Window = m.data.Projects[idx].Sessions[0].ActiveWindow
-	}
-	m.selection.Pane = ""
+	projectName := m.data.Projects[idx].Name
+	resolved := resolveSelection(m.data.Projects, m.selectionForProject(projectName))
+	m.applySelection(resolved)
 	m.selectionVersion++
 }
 
@@ -994,6 +1026,7 @@ func (m *Model) selectSession(delta int) {
 	m.selection.Window = filtered[idx].ActiveWindow
 	m.selection.Pane = ""
 	m.selectionVersion++
+	m.rememberSelection(m.selection)
 }
 
 func (m *Model) selectWindow(delta int) {
@@ -1006,6 +1039,7 @@ func (m *Model) selectWindow(delta int) {
 	m.selection.Window = session.Windows[idx].Index
 	m.selection.Pane = ""
 	m.selectionVersion++
+	m.rememberSelection(m.selection)
 }
 
 func (m *Model) selectPane(delta int) {
@@ -1059,6 +1093,7 @@ func (m *Model) selectPane(delta int) {
 	next := panes[idx]
 	m.selection.Window = next.windowIndex
 	m.selection.Pane = next.paneIndex
+	m.rememberSelection(m.selection)
 }
 
 func (m *Model) toggleWindows() {
