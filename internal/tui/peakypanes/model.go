@@ -55,16 +55,16 @@ type dashboardKeyMap struct {
 
 func newDashboardKeyMap() *dashboardKeyMap {
 	return &dashboardKeyMap{
-		projectLeft:    key.NewBinding(key.WithKeys("a"), key.WithHelp("a", "project")),
-		projectRight:   key.NewBinding(key.WithKeys("d"), key.WithHelp("d", "project")),
-		sessionUp:      key.NewBinding(key.WithKeys("w"), key.WithHelp("w", "session")),
-		sessionDown:    key.NewBinding(key.WithKeys("s"), key.WithHelp("s", "session")),
+		projectLeft:    key.NewBinding(key.WithKeys("ctrl+a"), key.WithHelp("ctrl+a", "project")),
+		projectRight:   key.NewBinding(key.WithKeys("ctrl+d"), key.WithHelp("ctrl+d", "project")),
+		sessionUp:      key.NewBinding(key.WithKeys("ctrl+w"), key.WithHelp("ctrl+w", "session")),
+		sessionDown:    key.NewBinding(key.WithKeys("ctrl+s"), key.WithHelp("ctrl+s", "session")),
 		paneNext:       key.NewBinding(key.WithKeys("tab"), key.WithHelp("tab", "pane")),
 		panePrev:       key.NewBinding(key.WithKeys("shift+tab"), key.WithHelp("⇧tab", "pane")),
 		attach:         key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "attach")),
 		newSession:     key.NewBinding(key.WithKeys("ctrl+n"), key.WithHelp("ctrl+n", "new session")),
 		openTerminal:   key.NewBinding(key.WithKeys("ctrl+t"), key.WithHelp("ctrl+t", "new terminal")),
-		toggleWindows:  key.NewBinding(key.WithKeys("ctrl+w"), key.WithHelp("ctrl+w", "windows")),
+		toggleWindows:  key.NewBinding(key.WithKeys("ctrl+u"), key.WithHelp("ctrl+u", "windows")),
 		openProject:    key.NewBinding(key.WithKeys("ctrl+o"), key.WithHelp("ctrl+o", "open project")),
 		commandPalette: key.NewBinding(key.WithKeys("ctrl+p"), key.WithHelp("ctrl+p", "commands")),
 		refresh:        key.NewBinding(key.WithKeys("ctrl+r"), key.WithHelp("ctrl+r", "refresh")),

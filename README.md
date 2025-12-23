@@ -243,7 +243,7 @@ The dashboard shows:
 - Quick reply bar (always visible) and target pane highlight for follow-ups
 
 Navigation (always visible):
-- `a/d` project, `w/s` session, `tab/⇧tab` pane (across windows), `ctrl+g` help
+- `ctrl+a/ctrl+d` project, `ctrl+w/ctrl+s` session, `tab/⇧tab` pane (across windows), `ctrl+g` help
 
 Key bindings (also shown in the help view):
 
@@ -259,7 +259,7 @@ Session
 - rename session via command palette (`ctrl+p`)
 
 Window
-- `ctrl+w` toggle window list
+- `ctrl+u` toggle window list
 - rename window via command palette (`ctrl+p`)
 
 Pane

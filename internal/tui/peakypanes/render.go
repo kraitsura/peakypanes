@@ -302,7 +302,7 @@ func (m Model) viewThumbnails(width int) string {
 }
 
 func (m Model) viewFooter(width int) string {
-	base := "a/d ←/→ project · w/s ↑/↓ session · tab/shift+tab pane · ctrl+p commands · ctrl+g help · ctrl+c quit"
+	base := "ctrl+a/d ←/→ project · ctrl+w/s ↑/↓ session · tab/shift+tab pane · ctrl+p commands · ctrl+g help · ctrl+c quit"
 	base = theme.ListDimmed.Render(base)
 	toast := m.toastText()
 	if toast == "" {
@@ -571,8 +571,8 @@ func (m Model) viewCommandPalette() string {
 func (m Model) viewHelp() string {
 	var left strings.Builder
 	left.WriteString("Navigation\n")
-	left.WriteString("  a/d Switch projects\n")
-	left.WriteString("  w/s Switch sessions\n")
+	left.WriteString("  ctrl+a/ctrl+d Switch projects\n")
+	left.WriteString("  ctrl+w/ctrl+s Switch sessions\n")
 	left.WriteString("  tab/⇧tab Switch panes (across windows)\n")
 	left.WriteString("\nProject\n")
 	left.WriteString("  ctrl+o Open project picker\n")
@@ -589,7 +589,7 @@ func (m Model) viewHelp() string {
 
 	var right strings.Builder
 	right.WriteString("Window\n")
-	right.WriteString("  ctrl+w Toggle window list\n")
+	right.WriteString("  ctrl+u Toggle window list\n")
 	right.WriteString("\nTmux\n")
 	right.WriteString("  prefix+g Open dashboard popup\n")
 	right.WriteString("\nOther\n")

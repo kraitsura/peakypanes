@@ -13,7 +13,8 @@ This format is based on Keep a Changelog.
 - Sidebar hierarchy styling (single caret, per-session spacing, no "Windows"/"Sessions" labels).
 - Pane preview tiles use collapsed borders with consistent shared edges and highlight colors.
 - Tab/shift+tab now cycles panes across windows; footer help reflects new navigation.
-- Navigation uses WASD for project/session selection to keep quick reply always active.
+- Navigation uses ctrl+W/A/S/D for project/session selection to keep quick reply always active.
+- Window list toggle key moved to ctrl+u to avoid conflicts.
 - Preview header line removed and global header spacing added for cleaner layout.
 - Theme uses design tokens for consistent TUI colors.
 
