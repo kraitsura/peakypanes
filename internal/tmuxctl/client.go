@@ -636,6 +636,79 @@ func (c *Client) SendKeysLiteral(ctx context.Context, target, text string) error
 	return nil
 }
 
+// PasteText pastes text into a target pane using tmux paste-buffer.
+// When bracketed is true, bracketed paste codes are included if supported.
+func (c *Client) PasteText(ctx context.Context, target, text string, bracketed bool) error {
+	if target == "" {
+		return errors.New("paste-buffer target cannot be empty")
+	}
+	if text == "" {
+		return nil
+	}
+	bufName := fmt.Sprintf("peakypanes-%d-%d", os.Getpid(), time.Now().UnixNano())
+	loadCmd := c.run(ctx, c.bin, "load-buffer", "-b", bufName, "-")
+	loadCmd.Stdin = strings.NewReader(text)
+	if out, err := loadCmd.CombinedOutput(); err != nil {
+		return wrapTmuxErr("load-buffer", err, out)
+	}
+	args := []string{"paste-buffer", "-t", target, "-b", bufName, "-d", "-r"}
+	if bracketed {
+		args = append(args, "-p")
+	}
+	pasteCmd := c.run(ctx, c.bin, args...)
+	if out, err := pasteCmd.CombinedOutput(); err != nil {
+		_ = c.run(ctx, c.bin, "delete-buffer", "-b", bufName).Run()
+		return wrapTmuxErr("paste-buffer", err, out)
+	}
+	return nil
+}
+
+// SendBracketedPaste sends text using bracketed paste semantics.
+func (c *Client) SendBracketedPaste(ctx context.Context, target, text string) error {
+	if target == "" {
+		return errors.New("send-keys target cannot be empty")
+	}
+	if text == "" {
+		return nil
+	}
+	// Prefer paste-buffer with -p so tmux adds bracketed paste codes.
+	if err := c.PasteText(ctx, target, text, true); err == nil {
+		return nil
+	}
+
+	// Fallback for environments where paste-buffer is unavailable or fails.
+	payload := "\x1b[200~" + text + "\x1b[201~"
+	return c.SendKeysLiteral(ctx, target, payload)
+}
+
+// SendKeysSlow types text one rune at a time with a delay to avoid paste-burst heuristics.
+func (c *Client) SendKeysSlow(ctx context.Context, target, text string, delay time.Duration) error {
+	if target == "" {
+		return errors.New("send-keys target cannot be empty")
+	}
+	if text == "" {
+		return nil
+	}
+	if delay <= 0 {
+		return c.SendKeysLiteral(ctx, target, text)
+	}
+	runes := []rune(text)
+	for i, r := range runes {
+		if err := c.SendKeysLiteral(ctx, target, string(r)); err != nil {
+			return err
+		}
+		if i == len(runes)-1 {
+			break
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(delay):
+		}
+	}
+	return nil
+}
+
 // SelectPane sets the title of a pane.
 func (c *Client) SelectPane(ctx context.Context, target, title string) error {
 	if target == "" {

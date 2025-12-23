@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 
@@ -1571,10 +1572,22 @@ func (m *Model) sendQuickReply() tea.Cmd {
 	if !ok {
 		return NewWarningCmd("No pane selected")
 	}
+	pane := m.selectedPane()
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		if err := m.tmux.SendKeysLiteral(ctx, target, text); err != nil {
+		useCodex := pane != nil && paneLooksLikeCodex(ctx, pane)
+		if useCodex {
+			if err := m.tmux.SendBracketedPaste(ctx, target, text); err != nil {
+				if fallback := m.tmux.SendKeysSlow(ctx, target, text, 12*time.Millisecond); fallback != nil {
+					return ErrorMsg{Err: err, Context: "send to pane"}
+				}
+			}
+			// Codex suppresses Enter for a short window after paste-like bursts.
+			// Use a conservative delay so submission is reliable even if the input
+			// was not parsed as an explicit bracketed paste event.
+			time.Sleep(200 * time.Millisecond)
+		} else if err := m.tmux.SendKeysLiteral(ctx, target, text); err != nil {
 			return ErrorMsg{Err: err, Context: "send to pane"}
 		}
 		if err := m.tmux.SendKeys(ctx, target, "Enter"); err != nil {
@@ -1587,6 +1600,89 @@ func (m *Model) sendQuickReply() tea.Cmd {
 		}
 		return SuccessMsg{Message: "Sent"}
 	}
+}
+
+func paneLooksLikeCodex(ctx context.Context, pane *PaneItem) bool {
+	if pane == nil {
+		return false
+	}
+	command := strings.ToLower(strings.TrimSpace(pane.Command))
+	if strings.Contains(command, "codex") {
+		return true
+	}
+	startCommand := strings.ToLower(strings.TrimSpace(pane.StartCommand))
+	if strings.Contains(startCommand, "codex") {
+		return true
+	}
+	title := strings.ToLower(strings.TrimSpace(pane.Title))
+	if strings.Contains(title, "codex") {
+		return true
+	}
+	for _, line := range pane.Preview {
+		if strings.Contains(strings.ToLower(line), "codex") {
+			return true
+		}
+	}
+	if pane.PID > 0 && processTreeHasCodex(ctx, pane.PID) {
+		return true
+	}
+	return false
+}
+
+func processTreeHasCodex(ctx context.Context, rootPID int) bool {
+	if rootPID <= 0 {
+		return false
+	}
+	cmd := exec.CommandContext(ctx, "ps", "-Ao", "pid=,ppid=,command=")
+	out, err := cmd.Output()
+	if err != nil {
+		return false
+	}
+	type proc struct {
+		ppid int
+		cmd  string
+	}
+	procs := make(map[int]proc)
+	children := make(map[int][]int)
+	lines := strings.Split(string(out), "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		fields := strings.Fields(line)
+		if len(fields) < 3 {
+			continue
+		}
+		pid, err := strconv.Atoi(fields[0])
+		if err != nil {
+			continue
+		}
+		ppid, err := strconv.Atoi(fields[1])
+		if err != nil {
+			continue
+		}
+		command := strings.ToLower(strings.Join(fields[2:], " "))
+		procs[pid] = proc{ppid: ppid, cmd: command}
+		children[ppid] = append(children[ppid], pid)
+	}
+	queue := []int{rootPID}
+	seen := map[int]struct{}{}
+	for len(queue) > 0 {
+		pid := queue[0]
+		queue = queue[1:]
+		if _, ok := seen[pid]; ok {
+			continue
+		}
+		seen[pid] = struct{}{}
+		if p, ok := procs[pid]; ok {
+			if strings.Contains(p.cmd, "codex") {
+				return true
+			}
+			queue = append(queue, children[pid]...)
+		}
+	}
+	return false
 }
 
 func (m *Model) loadLayoutChoices(projectPath string) ([]LayoutChoice, error) {

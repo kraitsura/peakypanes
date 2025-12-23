@@ -24,18 +24,20 @@ type WindowInfo struct {
 
 // PaneInfo describes a tmux pane with geometry and status metadata.
 type PaneInfo struct {
-	ID         string
-	Index      string
-	Active     bool
-	Title      string
-	Command    string
-	Left       int
-	Top        int
-	Width      int
-	Height     int
-	Dead       bool
-	DeadStatus int
-	LastActive time.Time
+	ID           string
+	Index        string
+	Active       bool
+	Title        string
+	Command      string
+	StartCommand string
+	PID          int
+	Left         int
+	Top          int
+	Width        int
+	Height       int
+	Dead         bool
+	DeadStatus   int
+	LastActive   time.Time
 }
 
 // SessionHasClients returns true if the session has any attached clients.
@@ -161,6 +163,8 @@ func (c *Client) ListPanesDetailed(ctx context.Context, target string) ([]PaneIn
 		"#{pane_active}",
 		"#{pane_title}",
 		"#{pane_current_command}",
+		"#{pane_start_command}",
+		"#{pane_pid}",
 		"#{pane_left}",
 		"#{pane_top}",
 		"#{pane_width}",
@@ -173,8 +177,31 @@ func (c *Client) ListPanesDetailed(ctx context.Context, target string) ([]PaneIn
 	out, err := c.run(ctx, c.bin, "list-panes", "-t", target, "-F", fullFormat).CombinedOutput()
 	if err != nil {
 		if exitErr, ok := err.(*exec.ExitError); ok && exitErr.ExitCode() == 1 {
-			// Fallback for older tmux versions without some format fields.
-			return c.listPanesBasic(ctx, target)
+			// Try a legacy format without pane_pid before falling back.
+			legacyFormat := strings.Join([]string{
+				"#{pane_id}",
+				"#{pane_index}",
+				"#{pane_active}",
+				"#{pane_title}",
+				"#{pane_current_command}",
+				"#{pane_start_command}",
+				"#{pane_left}",
+				"#{pane_top}",
+				"#{pane_width}",
+				"#{pane_height}",
+				"#{pane_dead}",
+				"#{pane_dead_status}",
+				"#{pane_last_active}",
+			}, "\t")
+			out, err = c.run(ctx, c.bin, "list-panes", "-t", target, "-F", legacyFormat).CombinedOutput()
+			if err != nil {
+				return c.listPanesBasic(ctx, target)
+			}
+			panes := parsePanesFull(string(out))
+			if len(panes) == 0 {
+				return c.listPanesBasic(ctx, target)
+			}
+			return panes, nil
 		}
 		return nil, wrapTmuxErr("list-panes", err, out)
 	}
@@ -249,15 +276,26 @@ func parsePanesFull(out string) []PaneInfo {
 			continue
 		}
 		parts := strings.Split(line, "\t")
-		if len(parts) < 12 {
+		if len(parts) < 13 {
 			continue
 		}
-		left := parseInt(parts[5])
-		top := parseInt(parts[6])
-		width := parseInt(parts[7])
-		height := parseInt(parts[8])
-		deadStatus := parseInt(parts[10])
-		lastActive := parseInt64(parts[11])
+		startCommand := strings.TrimSpace(parts[5])
+		pid := 0
+		leftIdx := 6
+		deadIdx := 10
+		lastActiveIdx := 12
+		if len(parts) >= 14 {
+			pid = parseInt(parts[6])
+			leftIdx = 7
+			deadIdx = 11
+			lastActiveIdx = 13
+		}
+		left := parseInt(parts[leftIdx])
+		top := parseInt(parts[leftIdx+1])
+		width := parseInt(parts[leftIdx+2])
+		height := parseInt(parts[leftIdx+3])
+		deadStatus := parseInt(parts[deadIdx+1])
+		lastActive := parseInt64(parts[lastActiveIdx])
 		var lastActiveTime time.Time
 		if lastActive > 0 {
 			lastActiveTime = time.Unix(lastActive, 0)
@@ -268,18 +306,20 @@ func parsePanesFull(out string) []PaneInfo {
 			title = command
 		}
 		panes = append(panes, PaneInfo{
-			ID:         strings.TrimSpace(parts[0]),
-			Index:      strings.TrimSpace(parts[1]),
-			Active:     strings.TrimSpace(parts[2]) == "1",
-			Title:      title,
-			Command:    command,
-			Left:       left,
-			Top:        top,
-			Width:      width,
-			Height:     height,
-			Dead:       strings.TrimSpace(parts[9]) == "1",
-			DeadStatus: deadStatus,
-			LastActive: lastActiveTime,
+			ID:           strings.TrimSpace(parts[0]),
+			Index:        strings.TrimSpace(parts[1]),
+			Active:       strings.TrimSpace(parts[2]) == "1",
+			Title:        title,
+			Command:      command,
+			StartCommand: startCommand,
+			PID:          pid,
+			Left:         left,
+			Top:          top,
+			Width:        width,
+			Height:       height,
+			Dead:         strings.TrimSpace(parts[deadIdx]) == "1",
+			DeadStatus:   deadStatus,
+			LastActive:   lastActiveTime,
 		})
 	}
 	return panes
