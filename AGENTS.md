@@ -12,6 +12,10 @@
 10. Wrap errors with actionable context and preserve causes (`%w`).  
 11. Validate and sanitize all user-controlled inputs (paths, names) before OS/tmux calls.
 
+# Workflow
+
+1. Do not create git worktrees unless explicitly requested by the user.
+
 # Testing
 
 1. Maintain at least 60% code coverage for all Go modules to ensure reliability and early regression detection.
