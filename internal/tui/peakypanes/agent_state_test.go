@@ -94,3 +94,49 @@ func TestClassifyAgentState(t *testing.T) {
 		t.Fatalf("classifyAgentState() should be false for stale state")
 	}
 }
+
+func TestClassifyAgentStateIgnoresMismatches(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("PEAKYPANES_AGENT_STATE_DIR", dir)
+
+	paneID := "pane-42"
+	state := agentState{State: "running", Tool: "codex", UpdatedAtUnixMS: time.Now().UnixMilli(), PaneID: "other-pane"}
+	data, err := json.Marshal(state)
+	if err != nil {
+		t.Fatalf("Marshal() error: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, paneID+".json"), data, 0o644); err != nil {
+		t.Fatalf("WriteFile() error: %v", err)
+	}
+
+	cfg := DashboardConfig{AgentDetection: AgentDetectionConfig{Codex: true}}
+	if _, ok := classifyAgentState(PaneItem{ID: paneID}, cfg, time.Now()); ok {
+		t.Fatalf("classifyAgentState() should ignore mismatched pane_id")
+	}
+}
+
+func TestClassifyAgentStateDisabledOrUnknown(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("PEAKYPANES_AGENT_STATE_DIR", dir)
+
+	paneID := "pane-100"
+	state := agentState{State: "running", Tool: "unknown", UpdatedAtUnixMS: time.Now().UnixMilli(), PaneID: paneID}
+	data, err := json.Marshal(state)
+	if err != nil {
+		t.Fatalf("Marshal() error: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, paneID+".json"), data, 0o644); err != nil {
+		t.Fatalf("WriteFile() error: %v", err)
+	}
+
+	cfg := DashboardConfig{AgentDetection: AgentDetectionConfig{Codex: true, Claude: true}}
+	if _, ok := classifyAgentState(PaneItem{ID: paneID}, cfg, time.Now()); ok {
+		t.Fatalf("classifyAgentState() should ignore unknown tool")
+	}
+
+	// Disable detection entirely.
+	cfg = DashboardConfig{AgentDetection: AgentDetectionConfig{Codex: false, Claude: false}}
+	if _, ok := classifyAgentState(PaneItem{ID: paneID}, cfg, time.Now()); ok {
+		t.Fatalf("classifyAgentState() should be false when detection disabled")
+	}
+}
