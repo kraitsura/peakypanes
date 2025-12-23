@@ -246,6 +246,78 @@ func TestSelectHelpers(t *testing.T) {
 	m.selectPane(1)
 }
 
+func TestSelectionMemoryAcrossProjects(t *testing.T) {
+	m, _ := newTestModel(t, nil)
+	m.data = DashboardData{Projects: []ProjectGroup{{
+		Name: "A",
+		Sessions: []SessionItem{
+			{Name: "s1", ActiveWindow: "0", Windows: []WindowItem{{Index: "0", Panes: []PaneItem{{Index: "0", Active: true}}}}},
+			{Name: "s2", ActiveWindow: "1", Windows: []WindowItem{{Index: "1", Panes: []PaneItem{{Index: "0", Active: true}}}}},
+		},
+	}, {
+		Name: "B",
+		Sessions: []SessionItem{
+			{Name: "b1", ActiveWindow: "0", Windows: []WindowItem{{Index: "0", Panes: []PaneItem{{Index: "0", Active: true}}}}},
+			{Name: "b2", ActiveWindow: "1", Windows: []WindowItem{{Index: "1", Panes: []PaneItem{{Index: "0", Active: true}}}}},
+		},
+	}}}
+	m.selection = selectionState{Project: "A", Session: "s1", Window: "0"}
+	m.selectSession(1)
+	if m.selection.Session != "s2" {
+		t.Fatalf("selectSession() = %q", m.selection.Session)
+	}
+
+	m.selectProject(1)
+	if m.selection.Project != "B" {
+		t.Fatalf("selectProject() = %q", m.selection.Project)
+	}
+	m.selectSession(1)
+	if m.selection.Session != "b2" {
+		t.Fatalf("selectSession() = %q", m.selection.Session)
+	}
+
+	m.selectProject(-1)
+	if m.selection.Project != "A" || m.selection.Session != "s2" {
+		t.Fatalf("selection restore = %#v", m.selection)
+	}
+}
+
+func TestSelectionMemoryFallbackWhenMissing(t *testing.T) {
+	m, _ := newTestModel(t, nil)
+	m.data = DashboardData{Projects: []ProjectGroup{{
+		Name: "A",
+		Sessions: []SessionItem{
+			{Name: "s1", ActiveWindow: "0", Windows: []WindowItem{{Index: "0", Panes: []PaneItem{{Index: "0", Active: true}}}}},
+			{Name: "s2", ActiveWindow: "1", Windows: []WindowItem{{Index: "1", Panes: []PaneItem{{Index: "0", Active: true}}}}},
+		},
+	}, {
+		Name: "B",
+		Sessions: []SessionItem{
+			{Name: "b1", ActiveWindow: "0", Windows: []WindowItem{{Index: "0", Panes: []PaneItem{{Index: "0", Active: true}}}}},
+		},
+	}}}
+	m.selection = selectionState{Project: "A", Session: "s2", Window: "1"}
+	m.rememberSelection(m.selection)
+
+	m.selectProject(1)
+	if m.selection.Project != "B" {
+		t.Fatalf("selectProject() = %q", m.selection.Project)
+	}
+
+	m.data = DashboardData{Projects: []ProjectGroup{{
+		Name:     "A",
+		Sessions: []SessionItem{{Name: "s1", ActiveWindow: "0", Windows: []WindowItem{{Index: "0", Panes: []PaneItem{{Index: "0", Active: true}}}}}},
+	}, {
+		Name:     "B",
+		Sessions: []SessionItem{{Name: "b1", ActiveWindow: "0", Windows: []WindowItem{{Index: "0", Panes: []PaneItem{{Index: "0", Active: true}}}}}},
+	}}}
+
+	m.selectProject(-1)
+	if m.selection.Project != "A" || m.selection.Session != "s1" {
+		t.Fatalf("selection fallback = %#v", m.selection)
+	}
+}
+
 func TestOpenQuickReply(t *testing.T) {
 	m, _ := newTestModel(t, nil)
 	m.data = DashboardData{Projects: []ProjectGroup{{
