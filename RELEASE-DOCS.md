@@ -91,6 +91,7 @@ The helper requires:
 - `CHANGELOG.md` contains the target version
 - npm auth (`npm whoami` must succeed)
 - `goreleaser` installed locally
+- `GITHUB_TOKEN` set (you can export `GITHUB_TOKEN=$(gh auth token)`).
 
 ## Post-Release Verification
 
