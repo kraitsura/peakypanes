@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 
@@ -49,7 +50,6 @@ type dashboardKeyMap struct {
 	editConfig     key.Binding
 	kill           key.Binding
 	closeProject   key.Binding
-	quickReply     key.Binding
 	help           key.Binding
 	quit           key.Binding
 	filter         key.Binding
@@ -57,28 +57,27 @@ type dashboardKeyMap struct {
 
 func newDashboardKeyMap() *dashboardKeyMap {
 	return &dashboardKeyMap{
-		projectLeft:    key.NewBinding(key.WithKeys("left"), key.WithHelp("←", "project")),
-		projectRight:   key.NewBinding(key.WithKeys("right"), key.WithHelp("→", "project")),
-		sessionUp:      key.NewBinding(key.WithKeys("up"), key.WithHelp("↑", "session")),
-		sessionDown:    key.NewBinding(key.WithKeys("down"), key.WithHelp("↓", "session")),
-		windowUp:       key.NewBinding(key.WithKeys("shift+up"), key.WithHelp("⇧↑", "window")),
-		windowDown:     key.NewBinding(key.WithKeys("shift+down"), key.WithHelp("⇧↓", "window")),
+		projectLeft:    key.NewBinding(key.WithKeys("ctrl+h"), key.WithHelp("ctrl+h", "project")),
+		projectRight:   key.NewBinding(key.WithKeys("ctrl+l"), key.WithHelp("ctrl+l", "project")),
+		sessionUp:      key.NewBinding(key.WithKeys("ctrl+k"), key.WithHelp("ctrl+k", "session")),
+		sessionDown:    key.NewBinding(key.WithKeys("ctrl+j"), key.WithHelp("ctrl+j", "session")),
+		windowUp:       key.NewBinding(key.WithKeys("ctrl+u"), key.WithHelp("ctrl+u", "window")),
+		windowDown:     key.NewBinding(key.WithKeys("ctrl+d"), key.WithHelp("ctrl+d", "window")),
 		paneNext:       key.NewBinding(key.WithKeys("tab"), key.WithHelp("tab", "pane")),
 		panePrev:       key.NewBinding(key.WithKeys("shift+tab"), key.WithHelp("⇧tab", "pane")),
 		attach:         key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "attach")),
-		newSession:     key.NewBinding(key.WithKeys("n", "s"), key.WithHelp("n", "new session")),
-		openTerminal:   key.NewBinding(key.WithKeys("t"), key.WithHelp("t", "new terminal")),
-		toggleWindows:  key.NewBinding(key.WithKeys(" "), key.WithHelp("space", "windows")),
-		openProject:    key.NewBinding(key.WithKeys("o"), key.WithHelp("o", "open project")),
-		commandPalette: key.NewBinding(key.WithKeys("ctrl+p"), key.WithHelp("^p", "commands")),
-		refresh:        key.NewBinding(key.WithKeys("r"), key.WithHelp("r", "refresh")),
-		editConfig:     key.NewBinding(key.WithKeys("e"), key.WithHelp("e", "edit config")),
-		kill:           key.NewBinding(key.WithKeys("K"), key.WithHelp("K", "kill session")),
-		closeProject:   key.NewBinding(key.WithKeys("c"), key.WithHelp("c", "close project")),
-		quickReply:     key.NewBinding(key.WithKeys("i"), key.WithHelp("i", "reply")),
-		help:           key.NewBinding(key.WithKeys("?"), key.WithHelp("?", "help")),
-		quit:           key.NewBinding(key.WithKeys("q", "ctrl+c"), key.WithHelp("q", "quit")),
-		filter:         key.NewBinding(key.WithKeys("/"), key.WithHelp("/", "filter")),
+		newSession:     key.NewBinding(key.WithKeys("ctrl+n"), key.WithHelp("ctrl+n", "new session")),
+		openTerminal:   key.NewBinding(key.WithKeys("ctrl+t"), key.WithHelp("ctrl+t", "new terminal")),
+		toggleWindows:  key.NewBinding(key.WithKeys("ctrl+w"), key.WithHelp("ctrl+w", "windows")),
+		openProject:    key.NewBinding(key.WithKeys("ctrl+o"), key.WithHelp("ctrl+o", "open project")),
+		commandPalette: key.NewBinding(key.WithKeys("ctrl+p"), key.WithHelp("ctrl+p", "commands")),
+		refresh:        key.NewBinding(key.WithKeys("ctrl+r"), key.WithHelp("ctrl+r", "refresh")),
+		editConfig:     key.NewBinding(key.WithKeys("ctrl+e"), key.WithHelp("ctrl+e", "edit config")),
+		kill:           key.NewBinding(key.WithKeys("ctrl+x"), key.WithHelp("ctrl+x", "kill session")),
+		closeProject:   key.NewBinding(key.WithKeys("ctrl+b"), key.WithHelp("ctrl+b", "close project")),
+		help:           key.NewBinding(key.WithKeys("ctrl+g"), key.WithHelp("ctrl+g", "help")),
+		quit:           key.NewBinding(key.WithKeys("ctrl+q", "ctrl+c"), key.WithHelp("ctrl+q", "quit")),
+		filter:         key.NewBinding(key.WithKeys("ctrl+f"), key.WithHelp("ctrl+f", "filter")),
 	}
 }
 
@@ -104,8 +103,7 @@ type Model struct {
 	filterInput  textinput.Model
 	filterActive bool
 
-	quickReplyInput  textinput.Model
-	quickReplyActive bool
+	quickReplyInput textinput.Model
 
 	projectPicker  list.Model
 	layoutPicker   list.Model
@@ -169,6 +167,7 @@ func NewModel(client *tmuxctl.Client) (*Model, error) {
 	m.quickReplyInput.PromptStyle = qrStyle
 	m.quickReplyInput.CursorStyle = qrStyle.Copy().
 		Reverse(true)
+	m.quickReplyInput.Focus()
 
 	m.setupProjectPicker()
 	m.setupLayoutPicker()
@@ -309,9 +308,6 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case exitAfterAttachMsg:
 		return m, tea.Quit
 	case tea.KeyMsg:
-		if m.state == StateDashboard && m.quickReplyActive {
-			return m.updateQuickReply(msg)
-		}
 		switch m.state {
 		case StateDashboard:
 			return m.updateDashboard(msg)
@@ -366,11 +362,13 @@ func (m *Model) updateDashboard(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		case "enter":
 			m.filterActive = false
 			m.filterInput.Blur()
+			m.quickReplyInput.Focus()
 			return m, nil
 		case "esc":
 			m.filterActive = false
 			m.filterInput.SetValue("")
 			m.filterInput.Blur()
+			m.quickReplyInput.Focus()
 			return m, nil
 		}
 		var cmd tea.Cmd
@@ -403,8 +401,6 @@ func (m *Model) updateDashboard(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case key.Matches(msg, m.keys.panePrev):
 		m.selectPane(-1)
 		return m, nil
-	case key.Matches(msg, m.keys.attach):
-		return m, m.attachOrStart()
 	case key.Matches(msg, m.keys.newSession):
 		m.openLayoutPicker()
 		return m, nil
@@ -429,26 +425,25 @@ func (m *Model) updateDashboard(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case key.Matches(msg, m.keys.closeProject):
 		m.openCloseProjectConfirm()
 		return m, nil
-	case key.Matches(msg, m.keys.quickReply):
-		return m, m.openQuickReply()
 	case key.Matches(msg, m.keys.filter):
 		m.filterActive = true
 		m.filterInput.Focus()
+		m.quickReplyInput.Blur()
 		return m, nil
 	case key.Matches(msg, m.keys.help):
-		m.state = StateHelp
+		m.setState(StateHelp)
 		return m, nil
 	case key.Matches(msg, m.keys.quit):
 		return m, tea.Quit
 	}
 
-	return m, nil
+	return m.updateQuickReply(msg)
 }
 
 func (m *Model) openProjectPicker() {
 	m.scanGitProjects()
 	m.projectPicker.SetItems(m.gitProjectsToItems())
-	m.state = StateProjectPicker
+	m.setState(StateProjectPicker)
 }
 
 func (m *Model) updateProjectPicker(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -460,11 +455,11 @@ func (m *Model) updateProjectPicker(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	switch msg.String() {
 	case "esc":
-		m.state = StateDashboard
+		m.setState(StateDashboard)
 		return m, nil
 	case "enter":
 		if item, ok := m.projectPicker.SelectedItem().(GitProject); ok {
-			m.state = StateDashboard
+			m.setState(StateDashboard)
 			m.selection.Project = item.Name
 			m.selection.Session = ""
 			m.selection.Window = ""
@@ -472,10 +467,10 @@ func (m *Model) updateProjectPicker(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.selectionVersion++
 			return m, m.startSessionAtPathDetached(item.Path)
 		}
-		m.state = StateDashboard
+		m.setState(StateDashboard)
 		return m, nil
 	case "q":
-		m.state = StateDashboard
+		m.setState(StateDashboard)
 		return m, nil
 	}
 
@@ -493,17 +488,17 @@ func (m *Model) updateLayoutPicker(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	switch msg.String() {
 	case "esc":
-		m.state = StateDashboard
+		m.setState(StateDashboard)
 		return m, nil
 	case "enter":
 		if item, ok := m.layoutPicker.SelectedItem().(LayoutChoice); ok {
-			m.state = StateDashboard
+			m.setState(StateDashboard)
 			return m, m.startNewSessionWithLayout(item.LayoutName)
 		}
-		m.state = StateDashboard
+		m.setState(StateDashboard)
 		return m, nil
 	case "q":
-		m.state = StateDashboard
+		m.setState(StateDashboard)
 		return m, nil
 	}
 
@@ -515,16 +510,16 @@ func (m *Model) updateLayoutPicker(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 func (m *Model) updateCommandPalette(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "esc", "q":
-		m.state = StateDashboard
+		m.setState(StateDashboard)
 		return m, nil
 	case "enter":
 		if item, ok := m.commandPalette.SelectedItem().(CommandItem); ok {
-			m.state = StateDashboard
+			m.setState(StateDashboard)
 			if item.Run != nil {
 				return m, item.Run(m)
 			}
 		}
-		m.state = StateDashboard
+		m.setState(StateDashboard)
 		return m, nil
 	}
 
@@ -570,7 +565,7 @@ func (m *Model) openRenameSession() {
 	m.renameWindow = ""
 	m.renameWindowIndex = ""
 	m.initRenameInput(session.Name, "new session name")
-	m.state = StateRenameSession
+	m.setState(StateRenameSession)
 }
 
 func (m *Model) openRenameWindow() {
@@ -592,13 +587,13 @@ func (m *Model) openRenameWindow() {
 	m.renameWindow = window.Name
 	m.renameWindowIndex = window.Index
 	m.initRenameInput(window.Name, "new window name")
-	m.state = StateRenameWindow
+	m.setState(StateRenameWindow)
 }
 
 func (m *Model) updateRename(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "esc":
-		m.state = StateDashboard
+		m.setState(StateDashboard)
 		return m, nil
 	case "enter":
 		return m, m.applyRename()
@@ -622,7 +617,7 @@ func (m *Model) applyRename() tea.Cmd {
 	switch m.state {
 	case StateRenameSession:
 		if newName == m.renameSession {
-			m.state = StateDashboard
+			m.setState(StateDashboard)
 			m.setToast("Session name unchanged", toastInfo)
 			return nil
 		}
@@ -638,12 +633,12 @@ func (m *Model) applyRename() tea.Cmd {
 			m.expandedSessions[newName] = true
 		}
 		m.selectionVersion++
-		m.state = StateDashboard
+		m.setState(StateDashboard)
 		m.setToast("Renamed session to "+newName, toastSuccess)
 		return m.refreshCmd()
 	case StateRenameWindow:
 		if newName == m.renameWindow {
-			m.state = StateDashboard
+			m.setState(StateDashboard)
 			m.setToast("Window name unchanged", toastInfo)
 			return nil
 		}
@@ -652,11 +647,11 @@ func (m *Model) applyRename() tea.Cmd {
 			return nil
 		}
 		m.selectionVersion++
-		m.state = StateDashboard
+		m.setState(StateDashboard)
 		m.setToast("Renamed window to "+newName, toastSuccess)
 		return m.refreshCmd()
 	default:
-		m.state = StateDashboard
+		m.setState(StateDashboard)
 	}
 	return nil
 }
@@ -691,13 +686,13 @@ func (m *Model) openProjectRootSetup() {
 	input.CursorEnd()
 	input.Focus()
 	m.projectRootInput = input
-	m.state = StateProjectRootSetup
+	m.setState(StateProjectRootSetup)
 }
 
 func (m *Model) updateProjectRootSetup(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "esc":
-		m.state = StateDashboard
+		m.setState(StateDashboard)
 		m.setToast("Using default project roots (edit config to customize)", toastInfo)
 		return m, nil
 	case "enter":
@@ -731,7 +726,7 @@ func (m *Model) applyProjectRootSetup() tea.Cmd {
 	} else {
 		m.setToast("Saved project roots", toastSuccess)
 	}
-	m.state = StateDashboard
+	m.setState(StateDashboard)
 	return nil
 }
 
@@ -790,31 +785,36 @@ func (m *Model) updateConfirmKill(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			defer cancel()
 			if err := m.tmux.KillSession(ctx, m.confirmSession); err != nil {
 				m.setToast("Kill failed: "+err.Error(), toastError)
-				m.state = StateDashboard
+				m.setState(StateDashboard)
 				return m, nil
 			}
 			m.setToast("Killed session "+m.confirmSession, toastSuccess)
 			m.confirmSession = ""
 			m.confirmProject = ""
-			m.state = StateDashboard
+			m.setState(StateDashboard)
 			return m, m.refreshCmd()
 		}
-		m.state = StateDashboard
+		m.setState(StateDashboard)
 		return m, nil
 	case "n", "esc":
 		m.confirmSession = ""
 		m.confirmProject = ""
-		m.state = StateDashboard
+		m.setState(StateDashboard)
 		return m, nil
 	}
 	return m, nil
 }
 
 func (m *Model) updateHelp(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	switch msg.String() {
-	case "?", "esc", "q":
-		m.state = StateDashboard
+	switch {
+	case msg.String() == "esc":
+		m.setState(StateDashboard)
 		return m, nil
+	case key.Matches(msg, m.keys.help):
+		m.setState(StateDashboard)
+		return m, nil
+	case key.Matches(msg, m.keys.quit):
+		return m, tea.Quit
 	}
 	return m, nil
 }
@@ -841,6 +841,15 @@ func (m *Model) View() string {
 		return m.viewProjectRootSetup()
 	default:
 		return m.viewDashboard()
+	}
+}
+
+func (m *Model) setState(state ViewState) {
+	m.state = state
+	if state == StateDashboard && !m.filterActive {
+		m.quickReplyInput.Focus()
+	} else {
+		m.quickReplyInput.Blur()
 	}
 }
 
@@ -1179,7 +1188,7 @@ func (m *Model) openKillConfirm() {
 	}
 	m.confirmSession = session.Name
 	m.confirmProject = m.selection.Project
-	m.state = StateConfirmKill
+	m.setState(StateConfirmKill)
 }
 
 func (m *Model) openCloseProjectConfirm() {
@@ -1189,7 +1198,7 @@ func (m *Model) openCloseProjectConfirm() {
 		return
 	}
 	m.confirmClose = project.Name
-	m.state = StateConfirmCloseProject
+	m.setState(StateConfirmCloseProject)
 }
 
 func (m *Model) updateConfirmCloseProject(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -1197,14 +1206,14 @@ func (m *Model) updateConfirmCloseProject(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "y", "enter":
 		name := strings.TrimSpace(m.confirmClose)
 		if name == "" {
-			m.state = StateDashboard
+			m.setState(StateDashboard)
 			return m, nil
 		}
 		project := findProject(m.data.Projects, name)
 		if project == nil {
 			m.setToast("Project not found", toastWarning)
 			m.confirmClose = ""
-			m.state = StateDashboard
+			m.setState(StateDashboard)
 			return m, nil
 		}
 		var running []SessionItem
@@ -1216,7 +1225,7 @@ func (m *Model) updateConfirmCloseProject(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if len(running) == 0 {
 			m.setToast("No running sessions to close", toastInfo)
 			m.confirmClose = ""
-			m.state = StateDashboard
+			m.setState(StateDashboard)
 			return m, nil
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -1228,7 +1237,7 @@ func (m *Model) updateConfirmCloseProject(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			}
 		}
 		m.confirmClose = ""
-		m.state = StateDashboard
+		m.setState(StateDashboard)
 		if len(failed) > 0 {
 			m.setToast("Close failed: "+strings.Join(failed, ", "), toastError)
 			return m, m.refreshCmd()
@@ -1237,7 +1246,7 @@ func (m *Model) updateConfirmCloseProject(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, m.refreshCmd()
 	case "n", "esc":
 		m.confirmClose = ""
-		m.state = StateDashboard
+		m.setState(StateDashboard)
 		return m, nil
 	}
 	return m, nil
@@ -1354,7 +1363,7 @@ func (m *Model) openLayoutPicker() {
 	}
 	m.layoutPicker.SetItems(layoutChoicesToItems(choices))
 	m.setLayoutPickerSize()
-	m.state = StateLayoutPicker
+	m.setState(StateLayoutPicker)
 }
 
 func (m *Model) setLayoutPickerSize() {
@@ -1406,7 +1415,7 @@ func (m *Model) openCommandPalette() tea.Cmd {
 	m.setCommandPaletteSize()
 	m.commandPalette.SetFilterState(list.Filtering)
 	cmd := m.commandPalette.SetItems(m.commandPaletteItems())
-	m.state = StateCommandPalette
+	m.setState(StateCommandPalette)
 	return cmd
 }
 
@@ -1508,10 +1517,11 @@ func (m *Model) commandPaletteItems() []list.Item {
 		{Label: "Other: Filter sessions", Desc: "Filter session list", Run: func(m *Model) tea.Cmd {
 			m.filterActive = true
 			m.filterInput.Focus()
+			m.quickReplyInput.Blur()
 			return nil
 		}},
 		{Label: "Other: Help", Desc: "Show help", Run: func(m *Model) tea.Cmd {
-			m.state = StateHelp
+			m.setState(StateHelp)
 			return nil
 		}},
 		{Label: "Other: Quit", Desc: "Exit PeakyPanes", Run: func(m *Model) tea.Cmd {
@@ -1530,7 +1540,6 @@ func (m *Model) openQuickReply() tea.Cmd {
 		m.setToast("No pane selected", toastWarning)
 		return nil
 	}
-	m.quickReplyActive = true
 	m.quickReplyInput.SetValue("")
 	m.quickReplyInput.Focus()
 	return nil
@@ -1547,13 +1556,13 @@ func (m *Model) updateQuickReply(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 	switch msg.String() {
 	case "enter":
-		m.quickReplyActive = false
-		m.quickReplyInput.Blur()
+		if strings.TrimSpace(m.quickReplyInput.Value()) == "" {
+			return m, m.attachOrStart()
+		}
 		return m, m.sendQuickReply()
 	case "esc":
-		m.quickReplyActive = false
 		m.quickReplyInput.SetValue("")
-		m.quickReplyInput.Blur()
+		m.quickReplyInput.CursorEnd()
 		return m, nil
 	}
 	var cmd tea.Cmd
@@ -1571,10 +1580,22 @@ func (m *Model) sendQuickReply() tea.Cmd {
 	if !ok {
 		return NewWarningCmd("No pane selected")
 	}
+	pane := m.selectedPane()
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		if err := m.tmux.SendKeysLiteral(ctx, target, text); err != nil {
+		useCodex := pane != nil && paneLooksLikeCodex(ctx, pane)
+		if useCodex {
+			if err := m.tmux.SendBracketedPaste(ctx, target, text); err != nil {
+				if fallback := m.tmux.SendKeysSlow(ctx, target, text, 12*time.Millisecond); fallback != nil {
+					return ErrorMsg{Err: err, Context: "send to pane"}
+				}
+			}
+			// Codex suppresses Enter for a short window after paste-like bursts.
+			// Use a conservative delay so submission is reliable even if the input
+			// was not parsed as an explicit bracketed paste event.
+			time.Sleep(200 * time.Millisecond)
+		} else if err := m.tmux.SendKeysLiteral(ctx, target, text); err != nil {
 			return ErrorMsg{Err: err, Context: "send to pane"}
 		}
 		if err := m.tmux.SendKeys(ctx, target, "Enter"); err != nil {
@@ -1587,6 +1608,89 @@ func (m *Model) sendQuickReply() tea.Cmd {
 		}
 		return SuccessMsg{Message: "Sent"}
 	}
+}
+
+func paneLooksLikeCodex(ctx context.Context, pane *PaneItem) bool {
+	if pane == nil {
+		return false
+	}
+	command := strings.ToLower(strings.TrimSpace(pane.Command))
+	if strings.Contains(command, "codex") {
+		return true
+	}
+	startCommand := strings.ToLower(strings.TrimSpace(pane.StartCommand))
+	if strings.Contains(startCommand, "codex") {
+		return true
+	}
+	title := strings.ToLower(strings.TrimSpace(pane.Title))
+	if strings.Contains(title, "codex") {
+		return true
+	}
+	for _, line := range pane.Preview {
+		if strings.Contains(strings.ToLower(line), "codex") {
+			return true
+		}
+	}
+	if pane.PID > 0 && processTreeHasCodex(ctx, pane.PID) {
+		return true
+	}
+	return false
+}
+
+func processTreeHasCodex(ctx context.Context, rootPID int) bool {
+	if rootPID <= 0 {
+		return false
+	}
+	cmd := exec.CommandContext(ctx, "ps", "-Ao", "pid=,ppid=,command=")
+	out, err := cmd.Output()
+	if err != nil {
+		return false
+	}
+	type proc struct {
+		ppid int
+		cmd  string
+	}
+	procs := make(map[int]proc)
+	children := make(map[int][]int)
+	lines := strings.Split(string(out), "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		fields := strings.Fields(line)
+		if len(fields) < 3 {
+			continue
+		}
+		pid, err := strconv.Atoi(fields[0])
+		if err != nil {
+			continue
+		}
+		ppid, err := strconv.Atoi(fields[1])
+		if err != nil {
+			continue
+		}
+		command := strings.ToLower(strings.Join(fields[2:], " "))
+		procs[pid] = proc{ppid: ppid, cmd: command}
+		children[ppid] = append(children[ppid], pid)
+	}
+	queue := []int{rootPID}
+	seen := map[int]struct{}{}
+	for len(queue) > 0 {
+		pid := queue[0]
+		queue = queue[1:]
+		if _, ok := seen[pid]; ok {
+			continue
+		}
+		seen[pid] = struct{}{}
+		if p, ok := procs[pid]; ok {
+			if strings.Contains(p.cmd, "codex") {
+				return true
+			}
+			queue = append(queue, children[pid]...)
+		}
+	}
+	return false
 }
 
 func (m *Model) loadLayoutChoices(projectPath string) ([]LayoutChoice, error) {

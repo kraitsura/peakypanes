@@ -12,7 +12,6 @@ func TestViewDashboardContentRenders(t *testing.T) {
 	m, _ := newTestModel(t, nil)
 	m.settings.RefreshInterval = 2 * time.Second
 	m.settings.ShowThumbnails = true
-	m.quickReplyActive = true
 	m.quickReplyInput.SetValue("hello")
 	m.data = DashboardData{Projects: []ProjectGroup{{
 		Name: "Proj",

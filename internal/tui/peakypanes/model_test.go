@@ -146,11 +146,11 @@ func TestKeyBindings(t *testing.T) {
 		t.Fatal("newDashboardKeyMap() returned nil")
 	}
 
-	if !key.Matches(tea.KeyMsg{Type: tea.KeyLeft}, km.projectLeft) {
-		t.Error("projectLeft binding should match left arrow")
+	if !key.Matches(tea.KeyMsg{Type: tea.KeyCtrlH}, km.projectLeft) {
+		t.Error("projectLeft binding should match ctrl+h")
 	}
-	if !key.Matches(tea.KeyMsg{Type: tea.KeyUp}, km.sessionUp) {
-		t.Error("sessionUp binding should match up arrow")
+	if !key.Matches(tea.KeyMsg{Type: tea.KeyCtrlK}, km.sessionUp) {
+		t.Error("sessionUp binding should match ctrl+k")
 	}
 	if !key.Matches(tea.KeyMsg{Type: tea.KeyEnter}, km.attach) {
 		t.Error("attach binding should match Enter key")
@@ -161,10 +161,7 @@ func TestKeyBindings(t *testing.T) {
 	if !key.Matches(tea.KeyMsg{Type: tea.KeyShiftTab}, km.panePrev) {
 		t.Error("panePrev binding should match Shift+Tab key")
 	}
-	if !key.Matches(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'i'}}, km.quickReply) {
-		t.Error("quickReply binding should match i key")
-	}
-	if !key.Matches(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'?'}}, km.help) {
-		t.Error("help binding should match ? key")
+	if !key.Matches(tea.KeyMsg{Type: tea.KeyCtrlG}, km.help) {
+		t.Error("help binding should match ctrl+g")
 	}
 }

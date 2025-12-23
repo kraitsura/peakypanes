@@ -243,24 +243,23 @@ The dashboard shows:
 - Quick reply bar (always visible) and target pane highlight for follow-ups
 
 Navigation (always visible):
-- `←/→` project, `↑/↓` session, `⇧↑/⇧↓` window, `tab/⇧tab` pane, `?` help
+- `ctrl+h/ctrl+l` project, `ctrl+k/ctrl+j` session, `ctrl+u/ctrl+d` window, `tab/⇧tab` pane, `ctrl+g` help
 
-Key bindings (also shown in `?` help):
+Key bindings (also shown in the help view):
 
 Project
-- `o` open project picker (creates session detached; stay in dashboard)
-- `c` close project (kills all running sessions in project)
+- `ctrl+o` open project picker (creates session detached; stay in dashboard)
+- `ctrl+b` close project (kills all running sessions in project)
 
 Session
-- `enter` attach/start session
-- `n` new session (pick layout)
-- `t` open in new terminal window
-- `i` focus quick reply input
-- `K` kill session
+- `enter` attach/start session (when reply is empty)
+- `ctrl+n` new session (pick layout)
+- `ctrl+t` open in new terminal window
+- `ctrl+x` kill session
 - rename session via command palette (`ctrl+p`)
 
 Window
-- `space` toggle window list
+- `ctrl+w` toggle window list
 - rename window via command palette (`ctrl+p`)
 
 Tmux (inside session)
@@ -268,9 +267,9 @@ Tmux (inside session)
 
 Other
 - `ctrl+p` command palette
-- `r` refresh, `e` edit config, `/` filter, `q` quit
+- `ctrl+r` refresh, `ctrl+e` edit config, `ctrl+f` filter, `ctrl+q` quit (or `ctrl+c`)
 
-Quick reply details: press `i` to focus the input, type, then `enter` sends to the highlighted pane. Use `esc` to cancel/clear. `tab/⇧tab` still cycles panes while the input is focused.
+Quick reply details: the input is always active—type and press `enter` to send to the highlighted pane. Use `esc` to clear. `tab/⇧tab` still cycles panes while the input is focused.
 
 ### Dashboard Config (optional)
 

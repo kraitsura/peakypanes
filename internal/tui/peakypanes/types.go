@@ -81,20 +81,22 @@ type WindowItem struct {
 
 // PaneItem represents a tmux pane with preview content.
 type PaneItem struct {
-	ID         string
-	Index      string
-	Title      string
-	Command    string
-	Active     bool
-	Left       int
-	Top        int
-	Width      int
-	Height     int
-	Dead       bool
-	DeadStatus int
-	LastActive time.Time
-	Preview    []string
-	Status     PaneStatus
+	ID           string
+	Index        string
+	Title        string
+	Command      string
+	StartCommand string
+	PID          int
+	Active       bool
+	Left         int
+	Top          int
+	Width        int
+	Height       int
+	Dead         bool
+	DeadStatus   int
+	LastActive   time.Time
+	Preview      []string
+	Status       PaneStatus
 }
 
 // PaneSummary holds lightweight preview info for thumbnails.
@@ -201,17 +203,19 @@ func (c CommandItem) FilterValue() string { return strings.ToLower(c.Label + " "
 // paneFromTmux converts tmux pane info to dashboard pane item.
 func paneFromTmux(p tmuxctl.PaneInfo) PaneItem {
 	return PaneItem{
-		ID:         p.ID,
-		Index:      p.Index,
-		Title:      p.Title,
-		Command:    p.Command,
-		Active:     p.Active,
-		Left:       p.Left,
-		Top:        p.Top,
-		Width:      p.Width,
-		Height:     p.Height,
-		Dead:       p.Dead,
-		DeadStatus: p.DeadStatus,
-		LastActive: p.LastActive,
+		ID:           p.ID,
+		Index:        p.Index,
+		Title:        p.Title,
+		Command:      p.Command,
+		StartCommand: p.StartCommand,
+		PID:          p.PID,
+		Active:       p.Active,
+		Left:         p.Left,
+		Top:          p.Top,
+		Width:        p.Width,
+		Height:       p.Height,
+		Dead:         p.Dead,
+		DeadStatus:   p.DeadStatus,
+		LastActive:   p.LastActive,
 	}
 }
