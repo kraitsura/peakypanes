@@ -538,13 +538,14 @@ func initLocal(layoutName string, force bool) {
 	// Create project config
 	projectName := filepath.Base(cwd)
 	content := fmt.Sprintf(`# Peaky Panes - Project Layout Configuration
-# This file defines the tmux layout for this project.
+# This file defines the tmux/zellij layout for this project.
 # Teammates with peakypanes installed will get this layout automatically.
 #
 # Variables: ${PROJECT_NAME}, ${PROJECT_PATH}, ${EDITOR}, or any env var
 # Use ${VAR:-default} for defaults
 
 session: %s
+multiplexer: tmux
 
 layout:
 `, projectName)
@@ -607,11 +608,18 @@ func initGlobal(layoutName string, force bool) {
 		}
 	}
 
-	configContent := `# Peaky Panes - Global Configuration
+configContent := `# Peaky Panes - Global Configuration
 # https://github.com/regenrek/peakypanes
+
+multiplexer: tmux
 
 tmux:
   config: ~/.config/tmux/tmux.conf
+
+zellij:
+  # config: ~/.config/zellij/config.kdl
+  # layout_dir: ~/.config/zellij/layouts
+  # bridge_plugin: ~/.config/peakypanes/zellij/peakypanes-bridge.wasm
 
 ghostty:
   config: ~/.config/ghostty/config
