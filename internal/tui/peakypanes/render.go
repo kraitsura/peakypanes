@@ -268,12 +268,13 @@ func (m Model) viewThumbnails(width int) string {
 }
 
 func (m Model) viewFooter(width int) string {
-	base := "←/→ project   ↑/↓ session   ⇧↑/⇧↓ window   tab pane   i reply   ^p commands   t new term   ? help"
+	base := "ctrl+h/l ←/→ project · ctrl+k/j ↑/↓ session · ctrl+u/d window · tab pane · ctrl+p commands · ctrl+g help"
+	base = theme.ListDimmed.Render(base)
 	toast := m.toastText()
 	if toast == "" {
 		return fitLine(base, width)
 	}
-	line := fmt.Sprintf("%s   %s", base, toast)
+	line := fmt.Sprintf("%s  %s", base, toast)
 	return fitLine(line, width)
 }
 
@@ -297,10 +298,7 @@ func (m Model) viewQuickReply(width int) string {
 	inputWidth := clamp(contentWidth-18, minWidth, maxWidth)
 	m.quickReplyInput.Width = inputWidth
 
-	hintText := "press i to reply"
-	if m.quickReplyActive {
-		hintText = "enter send • esc cancel"
-	}
+	hintText := "enter send • esc clear"
 
 	base := lipgloss.NewStyle().
 		Foreground(theme.TextPrimary).
@@ -511,32 +509,35 @@ func (m Model) viewCommandPalette() string {
 func (m Model) viewHelp() string {
 	var left strings.Builder
 	left.WriteString("Navigation\n")
-	left.WriteString("  ←/→   Switch projects\n")
-	left.WriteString("  ↑/↓   Switch sessions\n")
-	left.WriteString("  ⇧↑/⇧↓ Switch windows\n")
+	left.WriteString("  ctrl+h/ctrl+l Switch projects\n")
+	left.WriteString("  ctrl+k/ctrl+j Switch sessions\n")
+	left.WriteString("  ctrl+u/ctrl+d Switch windows\n")
 	left.WriteString("  tab/⇧tab Switch panes\n")
 	left.WriteString("\nProject\n")
-	left.WriteString("  o     Open project picker\n")
-	left.WriteString("  c     Close project\n")
+	left.WriteString("  ctrl+o Open project picker\n")
+	left.WriteString("  ctrl+b Close project\n")
 	left.WriteString("\nSession\n")
-	left.WriteString("  enter Attach/start session\n")
-	left.WriteString("  n     New session (pick layout)\n")
-	left.WriteString("  t     Open in new terminal window\n")
-	left.WriteString("  i     Quick reply to selected pane\n")
-	left.WriteString("  K     Kill session\n")
+	left.WriteString("  enter Attach/start session (when reply empty)\n")
+	left.WriteString("  ctrl+n New session (pick layout)\n")
+	left.WriteString("  ctrl+t Open in new terminal window\n")
+	left.WriteString("  ctrl+x Kill session\n")
+	left.WriteString("\nPane\n")
+	left.WriteString("  type  Quick reply is always active\n")
+	left.WriteString("  enter Send quick reply\n")
+	left.WriteString("  esc   Clear quick reply\n")
 
 	var right strings.Builder
 	right.WriteString("Window\n")
-	right.WriteString("  space Toggle window list\n")
+	right.WriteString("  ctrl+w Toggle window list\n")
 	right.WriteString("\nTmux\n")
 	right.WriteString("  prefix+g Open dashboard popup\n")
 	right.WriteString("\nOther\n")
-	right.WriteString("  r     Refresh\n")
-	right.WriteString("  e     Edit config\n")
-	right.WriteString("  ^p    Command palette\n")
-	right.WriteString("  /     Filter sessions\n")
-	right.WriteString("  ?     Close help\n")
-	right.WriteString("  q     Quit\n")
+	right.WriteString("  ctrl+r Refresh\n")
+	right.WriteString("  ctrl+e Edit config\n")
+	right.WriteString("  ctrl+p Command palette\n")
+	right.WriteString("  ctrl+f Filter sessions\n")
+	right.WriteString("  ctrl+g Close help\n")
+	right.WriteString("  ctrl+q Quit (ctrl+c)\n")
 
 	colWidth := 36
 	if m.width > 0 {

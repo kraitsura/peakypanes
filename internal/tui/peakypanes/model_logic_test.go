@@ -231,8 +231,8 @@ func TestOpenQuickReply(t *testing.T) {
 	}}}
 	m.selection = selectionState{Project: "Proj", Session: "sess", Window: "1"}
 	m.openQuickReply()
-	if !m.quickReplyActive {
-		t.Fatalf("openQuickReply() did not activate")
+	if !m.quickReplyInput.Focused() {
+		t.Fatalf("openQuickReply() did not focus input")
 	}
 	_, _ = m.updateQuickReply(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}})
 	_, cmd := m.updateQuickReply(tea.KeyMsg{Type: tea.KeyEnter})
